@@ -622,4 +622,11 @@ config INCOHERENT
 
 endif
 
+config LL_WATCHDOG
+	bool "Enable watchdog support in ll scheduler"
+	default n
+	help
+	  Select if you want to protect ll scheduler with a watchdog timer
+	  and it is supported by yours platform.
+
 endmenu

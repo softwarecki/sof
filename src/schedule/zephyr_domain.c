@@ -8,6 +8,7 @@
 #include <rtos/alloc.h>
 #include <sof/lib/cpu.h>
 #include <sof/lib/memory.h>
+#include <sof/lib/watchdog.h>
 #include <sof/math/numbers.h>
 #include <sof/platform.h>
 #include <sof/schedule/ll_schedule.h>
@@ -23,6 +24,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys_clock.h>
 #include <zephyr/timeout_q.h>
+#include <zephyr/drivers/watchdog.h>
 
 LOG_MODULE_DECLARE(ll_schedule, CONFIG_SOF_LOG_LEVEL);
 
@@ -66,6 +68,9 @@ static void zephyr_domain_thread_fn(void *p1, void *p2, void *p3)
 	for (;;) {
 		/* immediately go to sleep, waiting to be woken up by the timer */
 		k_sem_take(&dt->sem, K_FOREVER);
+
+		/* Feed the watchdog */
+		watchdog_feed(core);
 
 		cycles0 = k_cycle_get_32();
 		dt->handler(dt->arg);
@@ -168,6 +173,9 @@ static int zephyr_domain_register(struct ll_schedule_domain *domain,
 		k_timer_user_data_set(&zephyr_domain->timer, zephyr_domain);
 
 		k_timer_start(&zephyr_domain->timer, start, K_USEC(LL_TIMER_PERIOD_US));
+
+		/* Enable the watchdog */
+		watchdog_enable(core);
 	}
 
 	k_spin_unlock(&domain->lock, key);
@@ -194,6 +202,9 @@ static int zephyr_domain_unregister(struct ll_schedule_domain *domain,
 	key = k_spin_lock(&domain->lock);
 
 	if (!atomic_read(&domain->total_num_tasks)) {
+		/* Disable the watchdog */
+		watchdog_disable(core);
+
 		k_timer_stop(&zephyr_domain->timer);
 		k_timer_user_data_set(&zephyr_domain->timer, NULL);
 	}
