@@ -13,6 +13,7 @@
 #include <sof/ipc/msg.h>
 #include <sof/lib/agent.h>
 #include <sof/lib/mm_heap.h>
+#include <sof/lib/watchdog.h>
 #include <sof/schedule/edf_schedule.h>
 #include <sof/schedule/ll_schedule.h>
 #include <sof/schedule/ll_schedule_domain.h>
@@ -100,6 +101,10 @@ int platform_init(struct sof *sof)
 	/* initialize the host IPC mechanisms */
 	trace_point(TRACE_BOOT_PLATFORM_IPC);
 	ipc_init(sof);
+
+#if IS_ENABLED(CONFIG_LL_WATCHDOG)
+	watchdog_init();
+#endif
 
 	/* show heap status */
 	heap_trace_all(1);
