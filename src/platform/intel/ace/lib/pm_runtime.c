@@ -90,8 +90,17 @@ void platform_pm_runtime_disable(uint32_t context, uint32_t index)
 		tr_dbg(&power_tr, "putting prevent on d0i3");
 		pm_policy_state_lock_get(PM_STATE_RUNTIME_IDLE, PM_ALL_SUBSTATES);
 		/* Disable power gating when preventing */
+#ifdef DFDSPBRCP
+		/* This register have been renamed in Zephyrs commit
+		 * 21f278c04bc258eb344ac5b2123b49d760b5b71d. Temporarily use the old name until
+		 * zephyr is updated in west.yml
+		 */
 		DFDSPBRCP.bootctl[PLATFORM_PRIMARY_CORE_ID].bctl |=
 			DFDSPBRCP_BCTL_WAITIPCG | DFDSPBRCP_BCTL_WAITIPPG;
+#else
+		DSPCS.bootctl[PLATFORM_PRIMARY_CORE_ID].bctl |=
+			DSPBR_BCTL_WAITIPCG | DSPBR_BCTL_WAITIPPG;
+#endif
 		break;
 	default:
 		break;
