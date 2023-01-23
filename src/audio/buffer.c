@@ -70,7 +70,7 @@ struct comp_buffer *buffer_alloc(uint32_t size, uint32_t caps, uint32_t flags, u
 
 	/* From here no more uncached access to the buffer object, except its list headers */
 	audio_stream_set_addr(&buffer->stream, stream_addr);
-	buffer_init(buffer, size, caps);
+	buffer_init_stream(buffer, size);
 
 	audio_stream_set_underrun(&buffer->stream, !!(flags & SOF_BUF_UNDERRUN_PERMITTED));
 	audio_stream_set_overrun(&buffer->stream, !!(flags & SOF_BUF_OVERRUN_PERMITTED));
@@ -193,7 +193,7 @@ int buffer_set_size(struct comp_buffer *buffer, uint32_t size, uint32_t alignmen
 	if (new_ptr)
 		buffer->stream.addr = new_ptr;
 
-	buffer_init(buffer, size, buffer->caps);
+	buffer_init_stream(buffer, size);
 
 	return 0;
 }
