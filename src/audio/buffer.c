@@ -32,6 +32,41 @@ DECLARE_SOF_RT_UUID("buffer", buffer_uuid, 0x42544c92, 0x8e92, 0x4e41,
 		 0xb6, 0x79, 0x34, 0x51, 0x9f, 0x1c, 0x1d, 0x28);
 DECLARE_TR_CTX(buffer_tr, SOF_UUID(buffer_uuid), LOG_LEVEL_INFO);
 
+static struct comp_buffer *buffer_alloc_struct(void *stream_addr, uint32_t size, uint32_t caps,
+					       uint32_t flags, bool is_shared)
+{
+	struct comp_buffer *buffer;
+
+	tr_dbg(&buffer_tr, "buffer_alloc_struct()");
+
+	/* allocate new buffer	 */
+	enum mem_zone zone = is_shared ? SOF_MEM_ZONE_RUNTIME_SHARED : SOF_MEM_ZONE_RUNTIME;
+
+	buffer = rzalloc(zone, 0, SOF_MEM_CAPS_RAM, sizeof(*buffer));
+
+	if (!buffer) {
+		tr_err(&buffer_tr, "buffer_alloc_struct(): could not alloc structure");
+		return NULL;
+	}
+
+	CORE_CHECK_STRUCT_INIT(buffer, is_shared);
+
+	buffer->is_shared = is_shared;
+	buffer->caps = caps;
+
+	/* From here no more uncached access to the buffer object, except its list headers */
+	audio_stream_set_addr(&buffer->stream, stream_addr);
+	buffer_init_stream(buffer, size);
+
+	audio_stream_set_underrun(&buffer->stream, !!(flags & SOF_BUF_UNDERRUN_PERMITTED));
+	audio_stream_set_overrun(&buffer->stream, !!(flags & SOF_BUF_OVERRUN_PERMITTED));
+
+	list_init(&buffer->source_list);
+	list_init(&buffer->sink_list);
+
+	return buffer;
+}
+
 struct comp_buffer *buffer_alloc(uint32_t size, uint32_t caps, uint32_t flags, uint32_t align,
 				 bool is_shared)
 {
@@ -47,37 +82,18 @@ struct comp_buffer *buffer_alloc(uint32_t size, uint32_t caps, uint32_t flags, u
 		return NULL;
 	}
 
-	/* allocate new buffer	 */
-	enum mem_zone zone = is_shared ? SOF_MEM_ZONE_RUNTIME_SHARED : SOF_MEM_ZONE_RUNTIME;
-
-	buffer = rzalloc(zone, 0, SOF_MEM_CAPS_RAM, sizeof(*buffer));
-
-	if (!buffer) {
-		tr_err(&buffer_tr, "buffer_alloc(): could not alloc structure");
-		return NULL;
-	}
-
-	CORE_CHECK_STRUCT_INIT(buffer, is_shared);
-
-	buffer->is_shared = is_shared;
-	buffer->caps = caps;
 	stream_addr = rballoc_align(0, caps, size, align);
 	if (!stream_addr) {
-		rfree(buffer);
 		tr_err(&buffer_tr, "buffer_alloc(): could not alloc size = %u bytes of type = %u",
 		       size, caps);
 		return NULL;
 	}
 
-	/* From here no more uncached access to the buffer object, except its list headers */
-	audio_stream_set_addr(&buffer->stream, stream_addr);
-	buffer_init_stream(buffer, size);
-
-	audio_stream_set_underrun(&buffer->stream, !!(flags & SOF_BUF_UNDERRUN_PERMITTED));
-	audio_stream_set_overrun(&buffer->stream, !!(flags & SOF_BUF_OVERRUN_PERMITTED));
-
-	list_init(&buffer->source_list);
-	list_init(&buffer->sink_list);
+	buffer = buffer_alloc_struct(stream_addr, size, caps, flags, is_shared);
+	if (!buffer) {
+		tr_err(&buffer_tr, "buffer_alloc(): could not alloc buffer structure");
+		rfree(stream_addr);
+	}
 
 	return buffer;
 }
