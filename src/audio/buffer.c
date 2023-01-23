@@ -27,19 +27,10 @@ DECLARE_SOF_RT_UUID("buffer", buffer_uuid, 0x42544c92, 0x8e92, 0x4e41,
 		 0xb6, 0x79, 0x34, 0x51, 0x9f, 0x1c, 0x1d, 0x28);
 DECLARE_TR_CTX(buffer_tr, SOF_UUID(buffer_uuid), LOG_LEVEL_INFO);
 
-struct comp_buffer *buffer_alloc(uint32_t size, uint32_t caps, uint32_t align)
+static struct comp_buffer *buffer_alloc_struct(void *address, uint32_t size, uint32_t caps)
 {
 	struct comp_buffer *buffer;
 	struct comp_buffer __sparse_cache *buffer_c;
-
-	tr_dbg(&buffer_tr, "buffer_alloc()");
-
-	/* validate request */
-	if (size == 0) {
-		tr_err(&buffer_tr, "buffer_alloc(): new size = %u is invalid",
-		       size);
-		return NULL;
-	}
 
 	/*
 	 * allocate new buffer, align the allocation size to a cache line for
@@ -51,14 +42,7 @@ struct comp_buffer *buffer_alloc(uint32_t size, uint32_t caps, uint32_t align)
 		return NULL;
 	}
 
-	buffer->stream.addr = rballoc_align(0, caps, size, align);
-	if (!buffer->stream.addr) {
-		rfree(buffer);
-		tr_err(&buffer_tr, "buffer_alloc(): could not alloc size = %u bytes of type = %u",
-		       size, caps);
-		return NULL;
-	}
-
+	buffer->stream.addr = address;
 	list_init(&buffer->source_list);
 	list_init(&buffer->sink_list);
 
@@ -79,6 +63,32 @@ struct comp_buffer *buffer_alloc(uint32_t size, uint32_t caps, uint32_t align)
 	 * re-loaded again.
 	 */
 	dcache_writeback_invalidate_region(uncache_to_cache(buffer), sizeof(*buffer));
+}
+
+struct comp_buffer *buffer_alloc(uint32_t size, uint32_t caps, uint32_t align)
+{
+	struct comp_buffer *buffer;
+	void *address;
+
+	tr_dbg(&buffer_tr, "buffer_alloc()");
+
+	/* validate request */
+	if (size == 0) {
+		tr_err(&buffer_tr, "buffer_alloc(): new size = %u is invalid",
+		       size);
+		return NULL;
+	}
+
+	address = rballoc_align(0, caps, size, align);
+	if (!address) {
+		tr_err(&buffer_tr, "buffer_alloc(): could not alloc size = %u bytes of type = %u",
+		       size, caps);
+		return NULL;
+	}
+
+	buffer = buffer_alloc_struct(address, size, caps);
+	if (!buffer)
+		rfree(address);
 
 	return buffer;
 }
