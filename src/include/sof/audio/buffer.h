@@ -273,11 +273,8 @@ static inline void buffer_reset_pos(struct comp_buffer __sparse_cache *buffer, v
 }
 
 /* Run-time buffer re-configuration calls this too, so it must use cached access */
-static inline void buffer_init(struct comp_buffer __sparse_cache *buffer,
-			       uint32_t size, uint32_t caps)
+static inline void buffer_init_stream(struct comp_buffer __sparse_cache *buffer, uint32_t size)
 {
-	buffer->caps = caps;
-
 	/* addr should be set in alloc function */
 	audio_stream_init(&buffer->stream, buffer->stream.addr, size);
 }

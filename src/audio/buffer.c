@@ -64,7 +64,8 @@ struct comp_buffer *buffer_alloc(uint32_t size, uint32_t caps, uint32_t align)
 
 	/* From here no more uncached access to the buffer object, except its list headers */
 	buffer_c = buffer_acquire(buffer);
-	buffer_init(buffer_c, size, caps);
+	buffer_c->caps = caps;
+	buffer_init_stream(buffer_c, size);
 	buffer_release(buffer_c);
 
 	/*
@@ -119,7 +120,7 @@ int buffer_set_size(struct comp_buffer __sparse_cache *buffer, uint32_t size)
 	if (new_ptr)
 		buffer->stream.addr = new_ptr;
 
-	buffer_init(buffer, size, buffer->caps);
+	buffer_init_stream(buffer, size);
 
 	return 0;
 }
