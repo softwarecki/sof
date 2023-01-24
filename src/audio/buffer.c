@@ -165,6 +165,48 @@ int buffer_sync_shadow_dp_queue(struct comp_buffer *buffer, size_t limit)
 }
 #endif /* CONFIG_ZEPHYR_DP_SCHEDULER */
 
+struct comp_buffer *buffer_alloc_range(uint32_t preffered_size, uint32_t minimum_size,
+				       uint32_t caps, uint32_t flags, uint32_t align,
+				       bool is_shared)
+{
+	struct comp_buffer *buffer;
+	uint32_t size;
+	void *stream_addr = NULL;
+
+	tr_dbg(&buffer_tr, "buffer_alloc_range()");
+
+	/* validate request */
+	if (minimum_size == 0 || preffered_size < minimum_size) {
+		tr_err(&buffer_tr, "buffer_alloc_range(): new size range %u -- %u is invalid",
+		       minimum_size, preffered_size);
+		return NULL;
+	}
+
+	/* Align preffered size to a multiple of the minimum size */
+	if (preffered_size % minimum_size)
+		preffered_size += minimum_size - preffered_size % minimum_size;
+
+	for (size = preffered_size; size >= minimum_size; size -= minimum_size) {
+		stream_addr = rballoc_align(0, caps, size, align);
+		if (stream_addr)
+			break;
+	}
+
+	if (!stream_addr) {
+		tr_err(&buffer_tr, "buffer_alloc_range(): could not alloc size = %u bytes of type = %u",
+		       size, caps);
+		return NULL;
+	}
+
+	buffer = buffer_alloc_struct(stream_addr, size, caps, flags, is_shared);
+	if (!buffer) {
+		tr_err(&buffer_tr, "buffer_alloc_range(): could not alloc buffer structure");
+		rfree(stream_addr);
+	}
+
+	return buffer;
+}
+
 void buffer_zero(struct comp_buffer *buffer)
 {
 	buf_dbg(buffer, "stream_zero()");
@@ -203,6 +245,63 @@ int buffer_set_size(struct comp_buffer *buffer, uint32_t size, uint32_t alignmen
 	if (!new_ptr && size > audio_stream_get_size(&buffer->stream)) {
 		buf_err(buffer, "resize can't alloc %u bytes type %u",
 			audio_stream_get_size(&buffer->stream), buffer->caps);
+		return -ENOMEM;
+	}
+
+	/* use bigger chunk, else just use the old chunk but set smaller */
+	if (new_ptr)
+		buffer->stream.addr = new_ptr;
+
+	buffer_init_stream(buffer, size);
+
+	return 0;
+}
+
+int buffer_set_size_range(struct comp_buffer *buffer, uint32_t preffered_size,
+			  uint32_t minimum_size, uint32_t alignment)
+{
+	void* ptr = audio_stream_get_addr(&buffer->stream);
+	const uint32_t size = audio_stream_get_size(&buffer->stream);
+	void *new_ptr = NULL;
+	uint32_t new_size;
+
+	CORE_CHECK_STRUCT(buffer);
+
+	/* validate request */
+	if (minimum_size == 0 || preffered_size < minimum_size) {
+		buf_err(buffer, "resize size range %u -- %u is invalid", minimum_size,
+			preffered_size);
+		return -EINVAL;
+	}
+
+	if (preffered_size == size)
+		return 0;
+
+	/* Align preffered size to a multiple of the minimum size */
+	if (preffered_size % minimum_size)
+		preffered_size += minimum_size - preffered_size % minimum_size;
+
+	if (!alignment) {
+		for (new_size = preffered_size; new_size >= minimum_size;
+		     new_size -= minimum_size) {
+			new_ptr = rbrealloc(ptr, SOF_MEM_FLAG_NO_COPY, buffer->caps, new_size,
+					    size);
+			if (new_ptr)
+				break;
+		}
+	} else {
+		for (new_size = preffered_size; new_size >= minimum_size;
+		     new_size -= minimum_size) {
+			new_ptr = rbrealloc_align(ptr, SOF_MEM_FLAG_NO_COPY, buffer->caps, new_size,
+					  size, alignment);
+			if (new_ptr)
+				break;
+		}
+	}
+
+	/* we couldn't allocate bigger chunk */
+	if (!new_ptr && new_size > size) {
+		buf_err(buffer, "resize can't alloc %u bytes type %u", new_size, buffer->caps);
 		return -ENOMEM;
 	}
 
