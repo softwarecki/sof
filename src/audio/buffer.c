@@ -93,6 +93,45 @@ struct comp_buffer *buffer_alloc(uint32_t size, uint32_t caps, uint32_t align)
 	return buffer;
 }
 
+struct comp_buffer *buffer_alloc_range(uint32_t preffered_size, uint32_t minimum_size,
+				       uint32_t caps, uint32_t align)
+{
+	struct comp_buffer *buffer;
+	uint32_t size;
+	void *ptr;
+
+	tr_dbg(&buffer_tr, "buffer_alloc_range()");
+
+	/* validate request */
+	if (minimum_size == 0 || preffered_size < minimum_size) {
+		tr_err(&buffer_tr, "buffer_alloc_range(): new size range %u -- %u is invalid",
+		       minimum_size, preffered_size);
+		return NULL;
+	}
+
+	/* Align preffered size to a multiple of the minimum size */
+	preffered_size -= preffered_size % minimum_size;
+
+	for (size = preffered_size; size >= minimum_size; size -= minimum_size) {
+		ptr = rballoc_align(0, caps, size, align);
+		if (ptr)
+			break;
+
+	}
+
+	if (!ptr) {
+		tr_err(&buffer_tr, "buffer_alloc_range(): could not alloc size = %u bytes of type = %u",
+		       size, caps);
+		return NULL;
+	}
+
+	buffer = buffer_alloc_struct(ptr, size, caps);
+	if (!buffer)
+		rfree(ptr);
+
+	return buffer;
+}
+
 void buffer_zero(struct comp_buffer __sparse_cache *buffer)
 {
 	buf_dbg(buffer, "stream_zero()");
@@ -121,8 +160,48 @@ int buffer_set_size(struct comp_buffer __sparse_cache *buffer, uint32_t size)
 
 	/* we couldn't allocate bigger chunk */
 	if (!new_ptr && size > buffer->stream.size) {
-		buf_err(buffer, "resize can't alloc %u bytes type %u",
-			buffer->stream.size, buffer->caps);
+		buf_err(buffer, "resize can't alloc %u bytes type %u", size, buffer->caps);
+		return -ENOMEM;
+	}
+
+	/* use bigger chunk, else just use the old chunk but set smaller */
+	if (new_ptr)
+		buffer->stream.addr = new_ptr;
+
+	buffer_init_stream(buffer, size);
+
+	return 0;
+}
+
+int buffer_set_size_range(struct comp_buffer __sparse_cache *buffer, uint32_t preffered_size,
+			  uint32_t minimum_size)
+{
+	void *new_ptr = NULL;
+	uint32_t size;
+
+	/* validate request */
+	if (minimum_size == 0 || preffered_size < minimum_size) {
+		buf_err(buffer, "resize size range %u -- %u is invalid", minimum_size,
+			preffered_size);
+		return -EINVAL;
+	}
+
+	if (preffered_size == buffer->stream.size)
+		return 0;
+
+	/* Align preffered size to a multiple of the minimum size */
+	preffered_size -= preffered_size % minimum_size;
+
+	for (size = preffered_size; size >= minimum_size; size -= minimum_size) {
+		new_ptr = rbrealloc(buffer->stream.addr, SOF_MEM_FLAG_NO_COPY,
+				    buffer->caps, size, buffer->stream.size);
+		if (new_ptr)
+			break;
+	}
+
+	/* we couldn't allocate bigger chunk */
+	if (!new_ptr && size > buffer->stream.size) {
+		buf_err(buffer, "resize can't alloc %u bytes type %u", size, buffer->caps);
 		return -ENOMEM;
 	}
 
