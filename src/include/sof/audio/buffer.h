@@ -190,8 +190,12 @@ struct buffer_cb_free {
 
 /* pipeline buffer creation and destruction */
 struct comp_buffer *buffer_alloc(uint32_t size, uint32_t caps, uint32_t align);
+struct comp_buffer *buffer_alloc_range(uint32_t preffered_size, uint32_t minimum_size,
+				       uint32_t caps, uint32_t align);
 struct comp_buffer *buffer_new(const struct sof_ipc_buffer *desc);
 int buffer_set_size(struct comp_buffer __sparse_cache *buffer, uint32_t size);
+int buffer_set_size_range(struct comp_buffer __sparse_cache *buffer, uint32_t preffered_size,
+			  uint32_t minimum_size);
 void buffer_free(struct comp_buffer *buffer);
 void buffer_zero(struct comp_buffer __sparse_cache *buffer);
 

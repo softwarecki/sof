@@ -102,6 +102,8 @@ struct comp_buffer *buffer_alloc_range(uint32_t preffered_size, uint32_t minimum
 
 	tr_dbg(&buffer_tr, "buffer_alloc_range()");
 
+	tr_err(&buffer_tr, "buffer_alloc_range(): %u -- %u bytes", minimum_size, preffered_size);
+
 	/* validate request */
 	if (minimum_size == 0 || preffered_size < minimum_size) {
 		tr_err(&buffer_tr, "buffer_alloc_range(): new size range %u -- %u is invalid",
@@ -118,10 +120,11 @@ struct comp_buffer *buffer_alloc_range(uint32_t preffered_size, uint32_t minimum
 			break;
 
 	}
+	tr_err(&buffer_tr, "buffer_alloc_range(): allocated %u bytes", size);
 
 	if (!ptr) {
 		tr_err(&buffer_tr, "buffer_alloc_range(): could not alloc size = %u bytes of type = %u",
-		       size, caps);
+		       minimum_size, caps);
 		return NULL;
 	}
 
@@ -201,7 +204,7 @@ int buffer_set_size_range(struct comp_buffer __sparse_cache *buffer, uint32_t pr
 
 	/* we couldn't allocate bigger chunk */
 	if (!new_ptr && size > buffer->stream.size) {
-		buf_err(buffer, "resize can't alloc %u bytes type %u", size, buffer->caps);
+		buf_err(buffer, "resize can't alloc %u bytes type %u", minimum_size, buffer->caps);
 		return -ENOMEM;
 	}
 
