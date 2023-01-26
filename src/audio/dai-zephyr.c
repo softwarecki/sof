@@ -737,6 +737,7 @@ static int dai_params(struct comp_dev *dev, struct sof_ipc_stream_params *params
 	uint32_t period_count;
 	uint32_t period_bytes;
 	uint32_t buffer_size;
+	uint32_t buffer_size_preffered;
 	uint32_t addr_align;
 	uint32_t align;
 	int err;
@@ -822,14 +823,15 @@ static int dai_params(struct comp_dev *dev, struct sof_ipc_stream_params *params
 	dd->period_bytes = period_bytes;
 
 	/* calculate DMA buffer size */
-	period_count = MAX(period_count,
-			   SOF_DIV_ROUND_UP(dd->ipc_config.dma_buffer_size, period_bytes));
 	buffer_size = ALIGN_UP(period_count * period_bytes, align);
+	buffer_size_preffered = MAX(period_count,
+				    SOF_DIV_ROUND_UP(dd->ipc_config.dma_buffer_size, period_bytes));
+	buffer_size_preffered = ALIGN_UP(buffer_size_preffered * period_bytes, align);
 
 	/* alloc DMA buffer or change its size if exists */
 	if (dd->dma_buffer) {
 		buffer_c = buffer_acquire(dd->dma_buffer);
-		err = buffer_set_size(buffer_c, buffer_size);
+		err = buffer_set_size_range(buffer_c, buffer_size_preffered, buffer_size);
 		buffer_release(buffer_c);
 
 		if (err < 0) {
@@ -838,8 +840,8 @@ static int dai_params(struct comp_dev *dev, struct sof_ipc_stream_params *params
 			return err;
 		}
 	} else {
-		dd->dma_buffer = buffer_alloc(buffer_size, SOF_MEM_CAPS_DMA,
-					      addr_align);
+		dd->dma_buffer = buffer_alloc_range(buffer_size_preffered, buffer_size,
+						    SOF_MEM_CAPS_DMA, addr_align);
 		if (!dd->dma_buffer) {
 			comp_err(dev, "dai_params(): failed to alloc dma buffer");
 			return -ENOMEM;
@@ -857,6 +859,8 @@ static int dai_params(struct comp_dev *dev, struct sof_ipc_stream_params *params
 				  BUFFER_UPDATE_FORCE);
 		buffer_release(buffer_c);
 	}
+	period_count = dd->dma_buffer->stream.size / period_bytes;
+
 
 	return dev->direction == SOF_IPC_STREAM_PLAYBACK ?
 		dai_playback_params(dev, period_bytes, period_count) :

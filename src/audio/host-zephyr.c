@@ -780,6 +780,7 @@ static int host_params(struct comp_dev *dev,
 	uint32_t period_count;
 	uint32_t period_bytes;
 	uint32_t buffer_size;
+	uint32_t buffer_size_preffered;
 	uint32_t addr_align;
 	uint32_t align;
 	int i, channel, err;
@@ -861,7 +862,7 @@ static int host_params(struct comp_dev *dev,
 
 	/* calculate DMA buffer size */
 	buffer_size = ALIGN_UP(period_bytes, align) * period_count;
-	buffer_size = MAX(buffer_size, ALIGN_UP(hd->ipc_host.dma_buffer_size, align));
+	buffer_size_preffered = MAX(buffer_size, ALIGN_UP(hd->ipc_host.dma_buffer_size, align));
 
 	/* alloc DMA buffer or change its size if exists */
 	/*
@@ -870,7 +871,7 @@ static int host_params(struct comp_dev *dev,
 	 */
 	if (hd->dma_buffer) {
 		dma_buf_c = buffer_acquire(hd->dma_buffer);
-		err = buffer_set_size(dma_buf_c, buffer_size);
+		err = buffer_set_size_range(dma_buf_c, buffer_size_preffered, buffer_size);
 		buffer_release(dma_buf_c);
 		if (err < 0) {
 			comp_err(dev, "host_params(): buffer_set_size() failed, buffer_size = %u",
@@ -878,8 +879,8 @@ static int host_params(struct comp_dev *dev,
 			goto out;
 		}
 	} else {
-		hd->dma_buffer = buffer_alloc(buffer_size, SOF_MEM_CAPS_DMA,
-					      addr_align);
+		hd->dma_buffer = buffer_alloc_range(buffer_size_preffered, buffer_size,
+						    SOF_MEM_CAPS_DMA, addr_align);
 		if (!hd->dma_buffer) {
 			comp_err(dev, "host_params(): failed to alloc dma buffer");
 			err = -ENOMEM;
@@ -890,6 +891,7 @@ static int host_params(struct comp_dev *dev,
 		buffer_set_params(dma_buf_c, params, BUFFER_UPDATE_FORCE);
 		buffer_release(dma_buf_c);
 	}
+	buffer_size = hd->dma_buffer->stream.size;
 
 	/* create SG DMA elems for local DMA buffer */
 	err = create_local_elems(dev, period_count, buffer_size / period_count);
