@@ -175,6 +175,8 @@ struct comp_buffer *buffer_alloc_range(uint32_t preffered_size, uint32_t minimum
 
 	tr_dbg(&buffer_tr, "buffer_alloc_range()");
 
+	tr_err(&buffer_tr, "buffer_alloc_range(): %u -- %u bytes", minimum_size, preffered_size);
+
 	/* validate request */
 	if (minimum_size == 0 || preffered_size < minimum_size) {
 		tr_err(&buffer_tr, "buffer_alloc_range(): new size range %u -- %u is invalid",
@@ -191,10 +193,11 @@ struct comp_buffer *buffer_alloc_range(uint32_t preffered_size, uint32_t minimum
 		if (stream_addr)
 			break;
 	}
+	tr_err(&buffer_tr, "buffer_alloc_range(): allocated %u bytes", size);
 
 	if (!stream_addr) {
 		tr_err(&buffer_tr, "buffer_alloc_range(): could not alloc size = %u bytes of type = %u",
-		       size, caps);
+		       minimum_size, caps);
 		return NULL;
 	}
 
