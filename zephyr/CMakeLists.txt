@@ -464,6 +464,10 @@ if (CONFIG_ACE_VERSION_1_5)
 		${SOF_PLATFORM_PATH}/intel/ace/lib/watchdog.c
 	)
 
+	zephyr_library_sources_ifdef(CONFIG_USE_PREDEFINED_HEAP
+		${SOF_PLATFORM_PATH}/meteorlake/lib/memory.c
+	)
+
 	set(PLATFORM "meteorlake")
 
 	zephyr_include_directories(${SOF_PLATFORM_PATH}/intel/ace/include)
