@@ -27,6 +27,8 @@
 #include <zephyr/sys/__assert.h>
 #include <soc.h>
 
+#define DEFAULT_HEAP_SUPPORTED	1
+
 #if defined(CONFIG_ARCH_XTENSA) && !defined(CONFIG_KERNEL_COHERENCE)
 #include <zephyr/arch/xtensa/cache.h>
 #endif
@@ -89,10 +91,88 @@ extern char _end[], _heap_sentry[];
 
 #endif
 
-static struct k_heap sof_heap;
+
+struct sof_mem_desc;
+
+struct sof_heap_ops {
+	void* (*alloc)(struct sof_mem_desc *desc, const size_t size, const size_t align);
+	int (*free)(struct sof_mem_desc *desc, void* mem);
+	size_t (*get_size)(struct sof_mem_desc *desc, void* mem);
+};
+
+struct sof_mem_desc {
+	uintptr_t start, end;
+	const struct sof_heap_ops *ops;
+	struct k_spinlock lock;
+};
+
+#if DEFAULT_HEAP_SUPPORTED
+struct sof_default_heap {
+	struct sof_mem_desc desc;
+	struct sys_heap heap;
+};
+
+static void *default_heap_alloc(struct sof_mem_desc *desc, const size_t size, const size_t align)
+{
+	struct sof_default_heap *heap = container_of(desc, struct sof_default_heap, desc);
+	k_spinlock_key_t key;
+	void *ret;
+
+	key = k_spin_lock(&desc->lock);
+	ret = sys_heap_aligned_alloc(&heap->heap, align, size);
+	k_spin_unlock(&desc->lock, key);
+
+#if CONFIG_SYS_HEAP_RUNTIME_STATS && CONFIG_IPC_MAJOR_4
+	struct sys_memory_stats stats;
+
+	sys_heap_runtime_stats_get(&heap->heap, &stats);
+	tr_info(&zephyr_tr, "heap allocated: %u free: %u max allocated: %u",
+		stats.allocated_bytes, stats.free_bytes, stats.max_allocated_bytes);
+#endif
+	return ret;
+}
+
+static int default_heap_free(struct sof_mem_desc *desc, void *mem)
+{
+
+	struct sof_default_heap *heap = container_of(desc, struct sof_default_heap, desc);
+	k_spinlock_key_t key;
+
+	key = k_spin_lock(&desc->lock);
+	sys_heap_free(&heap->heap, mem);
+	k_spin_unlock(&desc->lock, key);
+
+	return 0;
+}
+
+static size_t default_heap_get_size(struct sof_mem_desc *desc, void *mem)
+{
+	struct sof_default_heap *heap = container_of(desc, struct sof_default_heap, desc);
+
+	return sys_heap_usable_size(&heap->heap, mem);
+}
+
+const static struct sof_heap_ops default_heap_ops = {
+	.alloc = default_heap_alloc,
+	.free = default_heap_free,
+	.get_size = default_heap_get_size,
+};
+
+static void default_heap_init(struct sof_default_heap *heap, void *const start,
+			      const size_t size)
+{
+	heap->desc.start = POINTER_TO_UINT(start);
+	heap->desc.end = POINTER_TO_UINT(start) + size - 1;
+	heap->desc.ops = &default_heap_ops;
+
+	sys_heap_init(&heap->heap, UINT_TO_POINTER(start), size);
+}
+#endif	/* DEFAULT_HEAP_SUPPORTED */
+
+static struct sof_default_heap sof_heap;
 
 #if CONFIG_L3_HEAP
-static struct k_heap l3_heap;
+static struct sof_default_heap l3_heap;
 
 /**
  * Returns the start of L3 memory heap.
@@ -125,49 +205,22 @@ static inline size_t get_l3_heap_size(void)
 	  */
 	return ROUND_DOWN(IMR_L3_HEAP_SIZE, L3_MEM_PAGE_SIZE);
 }
+#endif
 
-/**
- * Checks whether pointer is from L3 heap memory range.
- * @param ptr Pointer to memory being checked.
- * @return True if pointer falls into L3 heap region, false otherwise.
- */
-static bool is_l3_heap_pointer(void *ptr)
+
+static struct sof_mem_desc *const sof_heaps[] = {
+	&sof_heap.desc, 
+#if CONFIG_L3_HEAP
+	&l3_heap.desc,
+#endif
+};
+
+static void *heap_alloc_aligned(struct sof_mem_desc *desc, size_t min_align, size_t bytes)
 {
-	uintptr_t l3_heap_start = get_l3_heap_start();
-	uintptr_t l3_heap_end = l3_heap_start + get_l3_heap_size();
-
-	if (is_cached(ptr))
-		ptr = z_soc_uncached_ptr((__sparse_force void __sparse_cache *)ptr);
-
-	if ((POINTER_TO_UINT(ptr) >= l3_heap_start) && (POINTER_TO_UINT(ptr) < l3_heap_end))
-		return true;
-
-	return false;
-}
-#endif
-
-static void *heap_alloc_aligned(struct k_heap *h, size_t min_align, size_t bytes)
-{
-	k_spinlock_key_t key;
-	void *ret;
-#if CONFIG_SYS_HEAP_RUNTIME_STATS && CONFIG_IPC_MAJOR_4
-	struct sys_memory_stats stats;
-#endif
-
-	key = k_spin_lock(&h->lock);
-	ret = sys_heap_aligned_alloc(&h->heap, min_align, bytes);
-	k_spin_unlock(&h->lock, key);
-
-#if CONFIG_SYS_HEAP_RUNTIME_STATS && CONFIG_IPC_MAJOR_4
-	sys_heap_runtime_stats_get(&h->heap, &stats);
-	tr_info(&zephyr_tr, "heap allocated: %u free: %u max allocated: %u",
-		stats.allocated_bytes, stats.free_bytes, stats.max_allocated_bytes);
-#endif
-
-	return ret;
+	return desc->ops->alloc(desc, bytes, min_align);
 }
 
-static void __sparse_cache *heap_alloc_aligned_cached(struct k_heap *h,
+static void __sparse_cache *heap_alloc_aligned_cached(struct sof_mem_desc *desc,
 						      size_t min_align, size_t bytes)
 {
 	void __sparse_cache *ptr;
@@ -186,7 +239,7 @@ static void __sparse_cache *heap_alloc_aligned_cached(struct k_heap *h,
 	bytes = ALIGN_UP(bytes, min_align);
 #endif
 
-	ptr = (__sparse_force void __sparse_cache *)heap_alloc_aligned(h, min_align, bytes);
+	ptr = (__sparse_force void __sparse_cache *)heap_alloc_aligned(desc, min_align, bytes);
 
 #ifdef CONFIG_SOF_ZEPHYR_HEAP_CACHED
 	if (ptr)
@@ -196,23 +249,35 @@ static void __sparse_cache *heap_alloc_aligned_cached(struct k_heap *h,
 	return ptr;
 }
 
-static void heap_free(struct k_heap *h, void *mem)
+static void heap_free(void *mem)
 {
-	k_spinlock_key_t key = k_spin_lock(&h->lock);
+	struct sof_mem_desc *const *const desc_end = sof_heaps + ARRAY_SIZE(sof_heaps);
+	struct sof_mem_desc *const *desc;
+
 #ifdef CONFIG_SOF_ZEPHYR_HEAP_CACHED
-	void *mem_uncached;
+	void *mem_cached = mem;
 
 	if (is_cached(mem)) {
-		mem_uncached = z_soc_uncached_ptr((__sparse_force void __sparse_cache *)mem);
-		z_xtensa_cache_flush_inv(mem, sys_heap_usable_size(&h->heap, mem_uncached));
-
-		mem = mem_uncached;
+		mem = z_soc_uncached_ptr((__sparse_force void __sparse_cache *)mem_cached);
 	}
 #endif
 
-	sys_heap_free(&h->heap, mem);
+	/* Find the heap where the buffer come from. */
+	for (desc = sof_heaps; desc < desc_end; desc++) {
+		if ((POINTER_TO_UINT(mem) >= (*desc)->start) &&
+		    (POINTER_TO_UINT(mem) <= (*desc)->end))
+			break;
+	}
 
-	k_spin_unlock(&h->lock, key);
+	if (desc == desc_end)
+		return;
+
+#ifdef CONFIG_SOF_ZEPHYR_HEAP_CACHED
+	if (mem != mem_cached) {
+		z_xtensa_cache_flush_inv(mem, (*desc)->ops->get_size(*desc, mem));
+	}
+#endif
+	(*desc)->ops->free(*desc, mem);
 }
 
 static inline bool zone_is_cached(enum mem_zone zone)
@@ -235,17 +300,17 @@ static inline bool zone_is_cached(enum mem_zone zone)
 void *rmalloc(enum mem_zone zone, uint32_t flags, uint32_t caps, size_t bytes)
 {
 	void *ptr;
-	struct k_heap *heap;
+	struct sof_mem_desc *heap;
 
 	/* choose a heap */
 	if (caps & SOF_MEM_CAPS_L3) {
 #if CONFIG_L3_HEAP
-		heap = &l3_heap;
+		heap = &l3_heap.desc;
 #else
 		k_panic();
 #endif
 	} else {
-		heap = &sof_heap;
+		heap = &sof_heap.desc;
 	}
 
 	if (zone_is_cached(zone) && !(flags & SOF_MEM_FLAG_COHERENT)) {
@@ -324,9 +389,9 @@ void *rballoc_align(uint32_t flags, uint32_t caps, size_t bytes,
 		    uint32_t align)
 {
 	if (flags & SOF_MEM_FLAG_COHERENT)
-		return heap_alloc_aligned(&sof_heap, align, bytes);
+		return heap_alloc_aligned(&sof_heap.desc, align, bytes);
 
-	return (__sparse_force void *)heap_alloc_aligned_cached(&sof_heap, align, bytes);
+	return (__sparse_force void *)heap_alloc_aligned_cached(&sof_heap.desc, align, bytes);
 }
 
 /*
@@ -337,24 +402,16 @@ void rfree(void *ptr)
 	if (!ptr)
 		return;
 
-#if CONFIG_L3_HEAP
-	if (is_l3_heap_pointer(ptr)) {
-		heap_free(&l3_heap, ptr);
-		return;
-	}
-#endif
-
-	heap_free(&sof_heap, ptr);
+	heap_free(ptr);
 }
 
 static int heap_init(const struct device *unused)
 {
 	ARG_UNUSED(unused);
-
-	sys_heap_init(&sof_heap.heap, heapmem, HEAPMEM_SIZE);
+	default_heap_init(&sof_heap, heapmem, HEAPMEM_SIZE);
 
 #if CONFIG_L3_HEAP
-	sys_heap_init(&l3_heap.heap, UINT_TO_POINTER(get_l3_heap_start()), get_l3_heap_size());
+	default_heap_init(&l3_heap, UINT_TO_POINTER(get_l3_heap_start()), get_l3_heap_size());
 #endif
 
 	return 0;
