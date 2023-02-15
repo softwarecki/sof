@@ -590,4 +590,14 @@ config LL_WATCHDOG
 	  before stopping the thread. Periodically, after each tick has been
 	  handled, the watchdog counter is reseted.
 
+config USE_PREDEFINED_HEAP
+	bool "Divide heap memory into buffers of predefined size"
+	default n
+	depends on ACE
+	help
+	  If you select this option, predefined heap allocator will be used
+	  instead of sys_heap. It allows to avoid problems with memory fragmentation,
+	  but requires preparation of a appropriate division of memory into the
+	  necessary buffers.
+
 endmenu

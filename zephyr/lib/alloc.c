@@ -28,6 +28,11 @@
 #include <soc.h>
 
 #define DEFAULT_HEAP_SUPPORTED	1
+#define PREDEF_HEAP_SUPPORTED	IS_ENABLED(CONFIG_USE_PREDEFINED_HEAP)
+
+#if PREDEF_HEAP_SUPPORTED
+#include <zephyr/sys/predef_heap.h>
+#endif	/* PREDEF_HEAP_SUPPORTED */
 
 #if defined(CONFIG_ARCH_XTENSA) && !defined(CONFIG_KERNEL_COHERENCE)
 #include <zephyr/arch/xtensa/cache.h>
@@ -169,7 +174,87 @@ static void default_heap_init(struct sof_default_heap *heap, void *const start,
 }
 #endif	/* DEFAULT_HEAP_SUPPORTED */
 
+
+#if PREDEF_HEAP_SUPPORTED
+struct sof_predef_heap {
+	struct sof_mem_desc desc;
+	struct predef_heap heap;
+	unsigned long config_store[128*4];
+};
+
+static void *predef_alloc(struct sof_mem_desc *desc, const size_t size, const size_t align)
+{ 
+	struct sof_predef_heap *heap = container_of(desc, struct sof_predef_heap, desc);
+	k_spinlock_key_t key;
+	void *ptr;
+
+	key = k_spin_lock(&desc->lock);
+	ptr = predef_heap_aligned_alloc(&heap->heap, align, size);
+	k_spin_unlock(&desc->lock, key);
+	/*
+	if (ptr)
+		tr_err(&zephyr_tr, "predef: requested: %d, allocated: %d", (int)size,
+		       (int)predef_heap_usable_size(&heap->heap, ptr));
+	*/
+	if (!ptr)
+		tr_err(&zephyr_tr, "predef: unable to alloc %d", (int)size);
+
+	return ptr;
+}
+
+static int predef_free(struct sof_mem_desc *desc, void *mem)
+{ 
+	struct sof_predef_heap *heap = container_of(desc, struct sof_predef_heap, desc);
+	k_spinlock_key_t key;
+	int ret;
+
+	key = k_spin_lock(&desc->lock);
+	ret = predef_heap_free(&heap->heap, mem);
+	k_spin_unlock(&desc->lock, key);
+	assert(ret == 0);
+	return ret;
+}
+
+static size_t predef_get_size(struct sof_mem_desc *desc, void *mem)
+{
+	struct sof_predef_heap *heap = container_of(desc, struct sof_predef_heap, desc);
+
+	return predef_heap_usable_size(&heap->heap, mem);
+}
+
+const static struct sof_heap_ops predef_heap_ops = {
+	.alloc = predef_alloc,
+	.free = predef_free,
+	.get_size = predef_get_size,
+};
+
+static int predef_init(struct sof_predef_heap *heap, void *const start, const size_t size,
+			const struct predef_heap_config *const config)
+{
+	int count = 0;
+
+	/* Count configured bundles */
+	while (config[count].count)
+		count++;
+
+	heap->desc.start = POINTER_TO_UINT(start);
+	heap->desc.end = POINTER_TO_UINT(start) + size - 1;
+	heap->desc.ops = &predef_heap_ops;
+
+	heap->heap.config = &heap->config_store;
+	heap->heap.config_size= sizeof(heap->config_store);
+	return predef_heap_init(&heap->heap, config, count, UINT_TO_POINTER(start), size);
+}
+#endif	/* PREDEF_HEAP_SUPPORTED */
+
+#if IS_ENABLED(CONFIG_USE_PREDEFINED_HEAP)
+extern const struct predef_heap_config hp_buffers_config[];
+
+static struct sof_predef_heap sof_heap;
+#else
 static struct sof_default_heap sof_heap;
+#endif
+
 
 #if CONFIG_L3_HEAP
 static struct sof_default_heap l3_heap;
@@ -408,7 +493,14 @@ void rfree(void *ptr)
 static int heap_init(const struct device *unused)
 {
 	ARG_UNUSED(unused);
+#if IS_ENABLED(CONFIG_USE_PREDEFINED_HEAP)
+	int ret;
+
+	ret = predef_init(&sof_heap, heapmem, HEAPMEM_SIZE, hp_buffers_config);
+	assert(ret == 0);
+#else
 	default_heap_init(&sof_heap, heapmem, HEAPMEM_SIZE);
+#endif
 
 #if CONFIG_L3_HEAP
 	default_heap_init(&l3_heap, UINT_TO_POINTER(get_l3_heap_start()), get_l3_heap_size());
