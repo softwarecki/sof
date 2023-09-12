@@ -4,6 +4,7 @@
 //
 // Author: Bartosz Kokoszko <bartoszx.kokoszko@intel.com>
 // Author: Adrian Bonislawski <adrian.bonislawski@intel.com>
+// Author: Adrian Warecki <adrian.warecki@intel.com>
 
 #include <sof/audio/coefficients/up_down_mixer/up_down_mixer.h>
 #include <sof/audio/up_down_mixer/up_down_mixer.h>
@@ -27,6 +28,8 @@
 #include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <rimage/sof/user/manifest.h>
+#include <sof/audio/module_adapter/library/module_api_ver.h>
 
 LOG_MODULE_REGISTER(up_down_mixer, CONFIG_SOF_LOG_LEVEL);
 
@@ -37,6 +40,37 @@ DECLARE_SOF_RT_UUID("up_down_mixer", up_down_mixer_comp_uuid, 0x42f8060c, 0x832f
 
 DECLARE_TR_CTX(up_down_mixer_comp_tr, SOF_UUID(up_down_mixer_comp_uuid),
 	       LOG_LEVEL_INFO);
+
+#define ADSP_BUILD_INFO_FORMAT 0
+
+struct sof_module_api_build_info udm_build_info __attribute__((section(".buildinfo"))) = {
+	ADSP_BUILD_INFO_FORMAT,
+	{
+		((0x3FF & 5)  << 20) |
+		((0x3FF & 0) << 10) |
+		((0x3FF & 0)  << 0)
+	}
+};
+
+extern struct module_interface up_down_mixer_interface;
+
+void *loadable_udm_entry_point(void *mod_cfg, void *parent_ppl, void **mod_ptr)
+{
+	return &up_down_mixer_interface;
+}
+
+__attribute__((section(".module")))
+const struct sof_man_module_manifest udm_manifest = {
+	.module = {
+		.name = "UPDWMIX",
+		.uuid = {0x0C, 0x06, 0xF8, 0x42, 0x2F, 0x83, 0xBF, 0x4D,
+			 0xB2, 0x47, 0x51, 0xE9, 0x61, 0x99, 0x7B, 0x34},
+		.entry_point = (uint32_t)loadable_udm_entry_point,
+		.type = { .load_type = SOF_MAN_MOD_TYPE_MODULE,
+		.domain_ll = 1 },
+		.affinity_mask = 1,
+}
+};
 
 int32_t custom_coeffs[UP_DOWN_MIX_COEFFS_LENGTH];
 
@@ -462,6 +496,3 @@ static struct module_interface up_down_mixer_interface = {
 	.reset = up_down_mixer_reset,
 	.free = up_down_mixer_free
 };
-
-DECLARE_MODULE_ADAPTER(up_down_mixer_interface, up_down_mixer_comp_uuid, up_down_mixer_comp_tr);
-SOF_MODULE_INIT(up_down_mixer, sys_comp_module_up_down_mixer_interface_init);
