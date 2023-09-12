@@ -35,6 +35,21 @@ function(sof_append_relative_path_definitions target)
 	endforeach()
 endfunction()
 
+macro(sof_loadable_library name)
+	zephyr_library_named(loadable_library_${name})
+	set_property(TARGET loadable_library_${name} PROPERTY CXX_STANDARD 17)
+	zephyr_library_link_libraries(SOF)
+	list(APPEND loadable_modules_list ${name})
+endmacro()
+
+macro(sof_loadable_library_finalize)
+	foreach(name ${loadable_modules_list})
+		sof_append_relative_path_definitions(loadable_library_${name})
+	endforeach()
+
+	zephyr_add_loadable("${loadable_modules_list}")
+endmacro()
+
 # Initial SOF module will contain
 #
 # 1. Application logic - pipeline, audio components, IPC processing, topology
@@ -497,30 +512,6 @@ zephyr_library_sources_ifdef(CONFIG_SAMPLE_KEYPHRASE
 	${SOF_SAMPLES_PATH}/audio/detect_test.c
 )
 
-if(CONFIG_IPC_MAJOR_3)
-	zephyr_library_sources_ifdef(CONFIG_COMP_VOLUME
-		${SOF_AUDIO_PATH}/volume/volume_hifi4.c
-		${SOF_AUDIO_PATH}/volume/volume_hifi3.c
-		${SOF_AUDIO_PATH}/volume/volume_generic.c
-		${SOF_AUDIO_PATH}/volume/volume_hifi4_with_peakvol.c
-		${SOF_AUDIO_PATH}/volume/volume_hifi3_with_peakvol.c
-		${SOF_AUDIO_PATH}/volume/volume_generic_with_peakvol.c
-		${SOF_AUDIO_PATH}/volume/volume.c
-		${SOF_AUDIO_PATH}/volume/volume_ipc3.c
-)
-elseif(CONFIG_IPC_MAJOR_4)
-	zephyr_library_sources_ifdef(CONFIG_COMP_VOLUME
-		${SOF_AUDIO_PATH}/volume/volume_hifi4.c
-		${SOF_AUDIO_PATH}/volume/volume_hifi3.c
-		${SOF_AUDIO_PATH}/volume/volume_generic.c
-		${SOF_AUDIO_PATH}/volume/volume_hifi4_with_peakvol.c
-		${SOF_AUDIO_PATH}/volume/volume_hifi3_with_peakvol.c
-		${SOF_AUDIO_PATH}/volume/volume_generic_with_peakvol.c
-		${SOF_AUDIO_PATH}/volume/volume.c
-		${SOF_AUDIO_PATH}/volume/volume_ipc4.c
-)
-endif()
-
 zephyr_library_sources_ifdef(CONFIG_COMP_MODULE_ADAPTER
 	${SOF_AUDIO_PATH}/module_adapter/module_adapter.c
 	${SOF_AUDIO_PATH}/module_adapter/module/generic.c
@@ -678,11 +669,6 @@ zephyr_library_sources_ifdef(CONFIG_MATH_EXP
 	${SOF_MATH_PATH}/exp_fcn_hifi.c
 )
 
-zephyr_library_sources_ifdef(CONFIG_COMP_UP_DOWN_MIXER
-	${SOF_AUDIO_PATH}/up_down_mixer/up_down_mixer.c
-	${SOF_AUDIO_PATH}/up_down_mixer/up_down_mixer_hifi3.c
-)
-
 zephyr_library_sources_ifdef(CONFIG_COMP_MUX
 	${SOF_AUDIO_PATH}/mux/mux.c
 	${SOF_AUDIO_PATH}/mux/mux_generic.c
@@ -766,5 +752,42 @@ include(../scripts/cmake/version.cmake)
 
 # Create Trace realtive file paths
 sof_append_relative_path_definitions(modules_sof)
+
+# Compile volume as loadable module
+sof_loadable_library(volume)
+
+if(CONFIG_IPC_MAJOR_3)
+	zephyr_library_sources_ifdef(CONFIG_COMP_VOLUME
+		${SOF_AUDIO_PATH}/volume/volume_hifi4.c
+		${SOF_AUDIO_PATH}/volume/volume_hifi3.c
+		${SOF_AUDIO_PATH}/volume/volume_generic.c
+		${SOF_AUDIO_PATH}/volume/volume_hifi4_with_peakvol.c
+		${SOF_AUDIO_PATH}/volume/volume_hifi3_with_peakvol.c
+		${SOF_AUDIO_PATH}/volume/volume_generic_with_peakvol.c
+		${SOF_AUDIO_PATH}/volume/volume.c
+		${SOF_AUDIO_PATH}/volume/volume_ipc3.c
+)
+elseif(CONFIG_IPC_MAJOR_4)
+	zephyr_library_sources_ifdef(CONFIG_COMP_VOLUME
+		${SOF_AUDIO_PATH}/volume/volume_hifi4.c
+		${SOF_AUDIO_PATH}/volume/volume_hifi3.c
+		${SOF_AUDIO_PATH}/volume/volume_generic.c
+		${SOF_AUDIO_PATH}/volume/volume_hifi4_with_peakvol.c
+		${SOF_AUDIO_PATH}/volume/volume_hifi3_with_peakvol.c
+		${SOF_AUDIO_PATH}/volume/volume_generic_with_peakvol.c
+		${SOF_AUDIO_PATH}/volume/volume.c
+		${SOF_AUDIO_PATH}/volume/volume_ipc4.c
+)
+endif()
+
+# Compile up_down_mixer as loadable module
+sof_loadable_library(udm)
+
+zephyr_library_sources_ifdef(CONFIG_COMP_UP_DOWN_MIXER
+	${SOF_AUDIO_PATH}/up_down_mixer/up_down_mixer.c
+	${SOF_AUDIO_PATH}/up_down_mixer/up_down_mixer_hifi3.c
+)
+
+sof_loadable_library_finalize()
 
 endif() # CONFIG_SOF
