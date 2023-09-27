@@ -8,6 +8,8 @@
 #ifndef __MODULE_API_VER_H__
 #define __MODULE_API_VER_H__
 
+#include <stdint.h>
+
 /*
  *  Api version 5.0.0 for sof loadable modules
  */
