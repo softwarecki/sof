@@ -768,9 +768,9 @@ sof_append_relative_path_definitions(modules_sof)
 # Compile up_down_mixer as loadable module
 sof_loadable_library(updwmix ${SOF_AUDIO_PATH}/up_down_mixer/up_down_mixer.toml)
 
-zephyr_library_sources_ifdef(CONFIG_COMP_UP_DOWN_MIXER
-	${SOF_AUDIO_PATH}/up_down_mixer/up_down_mixer.c
-	${SOF_AUDIO_PATH}/up_down_mixer/up_down_mixer_hifi3.c
+sof_loadable_library(downmix ${SOF_AUDIO_PATH}/down_mixer/downmixer.toml)
+zephyr_library_sources(
+	${SOF_AUDIO_PATH}/down_mixer/downmixer_module.c
 )
 
 sof_loadable_library_finalize()
