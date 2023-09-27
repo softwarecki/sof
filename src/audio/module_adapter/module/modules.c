@@ -102,6 +102,13 @@ static int modules_init(struct processing_module *mod)
 	void *mod_adp;
 
 	/* Check if module is FDK*/
+	comp_err(dev, "modules_init(): Version 0x%08X: %d.%d.%d.%d",
+		 mod_buildinfo->api_version_number.full,
+		 mod_buildinfo->api_version_number.fields.major,
+		 mod_buildinfo->api_version_number.fields.middle,
+		 mod_buildinfo->api_version_number.fields.minor,
+		 mod_buildinfo->api_version_number.fields.reserved);
+
 	if (mod_buildinfo->api_version_number.fields.major < SOF_MODULE_API_MAJOR_VERSION) {
 		mod_adp = system_agent_start(md->module_entry_point, module_id,
 					     instance_id, 0, log_handle, &mod_cfg);

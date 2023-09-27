@@ -91,14 +91,18 @@ static int lib_manager_load_module(uint32_t module_id, struct sof_man_module *mo
 	/* Copy Code */
 	ret = lib_manager_load_data_from_storage(va_base_text, src_txt, st_text_size,
 						 SYS_MM_MEM_PERM_RW | SYS_MM_MEM_PERM_EXEC);
-	if (ret < 0)
+	if (ret < 0) {
+		tr_err(&lib_manager_tr, "lib_manager_load_module(): lib_manager_load_data_from_storage = %d (%d)", ret, __LINE__);
 		goto err;
+	}
 
 	/* Copy RODATA */
 	ret = lib_manager_load_data_from_storage(va_base_rodata, src_rodata,
 						 st_rodata_size, SYS_MM_MEM_PERM_RW);
-	if (ret < 0)
+	if (ret < 0) {
+		tr_err(&lib_manager_tr, "lib_manager_load_module(): lib_manager_load_data_from_storage = %d (%d)", ret, __LINE__);
 		goto err;
+	}
 
 	/* There are modules marked as lib_code. This is code shared between several modules inside
 	 * the library. Load all lib_code modules with first none lib_code module load.
@@ -114,8 +118,10 @@ static int lib_manager_load_module(uint32_t module_id, struct sof_man_module *mo
 			if (module_entry->type.lib_code) {
 				ret = lib_manager_load_module(lib_id << LIB_MANAGER_LIB_ID_SHIFT |
 							      idx, mod, desc);
-				if (ret < 0)
+				if (ret < 0) {
+					tr_err(&lib_manager_tr, "lib_manager_load_module(): lib_manager_load_module = %d (%d)", ret, __LINE__);
 					goto err;
+				}
 			}
 		}
 	}
@@ -254,16 +260,17 @@ uint32_t lib_manager_allocate_module(const struct comp_driver *drv,
 
 	desc = lib_manager_get_library_module_desc(module_id);
 	if (!desc) {
-		tr_err(&lib_manager_tr,
-		       "lib_manager_allocate_module(): failed to get module descriptor");
+		tr_err(&lib_manager_tr, "lib_manager_allocate_module(): failed to get module descriptor");
 		return 0;
 	}
 
 	mod = (struct sof_man_module *)((char *)desc + SOF_MAN_MODULE_OFFSET(entry_index));
 
 	ret = lib_manager_load_module(module_id, mod, desc);
-	if (ret < 0)
+	if (ret < 0) {
+		tr_err(&lib_manager_tr, "lib_manager_allocate_module(): lib_manager_load_module = %d", ret);
 		return 0;
+	}
 
 	ret = lib_manager_allocate_module_instance(module_id, IPC4_INST_ID(ipc_config->id),
 						   base_cfg->is_pages, mod);
@@ -486,7 +493,7 @@ static int lib_manager_dma_deinit(struct lib_manager_dma_ext *dma_ext, uint32_t 
 
 static int lib_manager_load_data_from_host(struct lib_manager_dma_ext *dma_ext, uint32_t size)
 {
-	uint64_t timeout = k_ms_to_cyc_ceil64(200);
+	uint64_t timeout = k_ms_to_cyc_ceil64(2000);
 	struct dma_status stat;
 	int ret;
 

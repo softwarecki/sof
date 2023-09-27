@@ -39,6 +39,8 @@
 #include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <rimage/sof/user/manifest.h>
+#include <sof/audio/module_adapter/library/module_api_ver.h>
 
 /* The driver assigns running numbers for control index. If there's single control of
  * type switch, enum, binary they all have index 0.
@@ -56,6 +58,20 @@ DECLARE_SOF_RT_UUID("tdfb", tdfb_uuid,  0xdd511749, 0xd9fa, 0x455c, 0xb3, 0xa7,
 		    0x13, 0x58, 0x56, 0x93, 0xf1, 0xaf);
 
 DECLARE_TR_CTX(tdfb_tr, SOF_UUID(tdfb_uuid), LOG_LEVEL_INFO);
+
+__attribute__((section(".module")))
+const struct sof_man_module_manifest tdfb_manifest = {
+	.module = {
+		.name = "tdfb",
+		.uuid = {0x0C, 0x06, 0xF8, 0x42, 0x2F, 0x83, 0xBF, 0x4D,
+		0xB2, 0x47, 0x51, 0xE9, 0x61, 0x99, 0x7B, 0x34},
+		.entry_point = (uint32_t)1234,
+		.type = { .load_type = 0,
+		.domain_ll = 1 },
+		.affinity_mask = 1,
+}
+};
+
 
 /* IPC */
 

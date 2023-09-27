@@ -663,14 +663,6 @@ zephyr_library_sources_ifdef(CONFIG_COMP_RTNR_STUB
 	${SOF_AUDIO_PATH}/rtnr/rtnr_stub.c
 )
 
-zephyr_library_sources_ifdef(CONFIG_COMP_TDFB
-	${SOF_AUDIO_PATH}/tdfb/tdfb.c
-	${SOF_AUDIO_PATH}/tdfb/tdfb_direction.c
-	${SOF_AUDIO_PATH}/tdfb/tdfb_generic.c
-	${SOF_AUDIO_PATH}/tdfb/tdfb_hifiep.c
-	${SOF_AUDIO_PATH}/tdfb/tdfb_hifi3.c
-)
-
 zephyr_library_sources_ifdef(CONFIG_SQRT_FIXED
 	${SOF_MATH_PATH}/sqrt_int16.c
 )
@@ -761,12 +753,23 @@ add_definitions(-DXCC_TOOLS_VERSION="${ZEPHYR_TOOLCHAIN_VARIANT}" -DCC_OPTIMIZE_
 # create version information
 include(../scripts/cmake/version.cmake)
 
-# Create Trace realtive file paths
-sof_append_relative_path_definitions(modules_sof)
+#sof_loadable_library(tdbf ${SOF_AUDIO_PATH}/up_down_mixer/up_down_mixer.toml)
+zephyr_library_sources_ifdef(CONFIG_COMP_TDFB
+	${SOF_AUDIO_PATH}/tdfb/tdfb.c
+	${SOF_AUDIO_PATH}/tdfb/tdfb_direction.c
+	${SOF_AUDIO_PATH}/tdfb/tdfb_generic.c
+	${SOF_AUDIO_PATH}/tdfb/tdfb_hifiep.c
+	${SOF_AUDIO_PATH}/tdfb/tdfb_hifi3.c
+)
 
 
 # Compile up_down_mixer as loadable module
-sof_loadable_library(updwmix ${SOF_AUDIO_PATH}/up_down_mixer/up_down_mixer.toml)
+#sof_loadable_library(updwmix ${SOF_AUDIO_PATH}/up_down_mixer/up_down_mixer.toml)
+#
+#zephyr_library_sources_ifdef(CONFIG_COMP_UP_DOWN_MIXER
+#	${SOF_AUDIO_PATH}/up_down_mixer/up_down_mixer.c
+#	${SOF_AUDIO_PATH}/up_down_mixer/up_down_mixer_hifi3.c
+#)
 
 sof_loadable_library(downmix ${SOF_AUDIO_PATH}/down_mixer/downmixer.toml)
 zephyr_library_sources(
@@ -774,5 +777,8 @@ zephyr_library_sources(
 )
 
 sof_loadable_library_finalize()
+
+# Create Trace realtive file paths
+sof_append_relative_path_definitions(modules_sof)
 
 endif() # CONFIG_SOF
