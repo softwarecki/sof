@@ -5,10 +5,12 @@
  * Author: Pawel Dobrowolski <pawelx.dobrowolski@intel.com>
  */
 
-#ifndef __MODULE_API_VER_H__
-#define __MODULE_API_VER_H__
+#ifndef __SOF_API_MODULE_API_VER_H__
+#define __SOF_API_MODULE_API_VER_H__
 
 #include <stdint.h>
+
+#define ADSP_BUILD_INFO_FORMAT 0
 
 /*
  *  Api version 5.0.0 for sof loadable modules
@@ -33,4 +35,4 @@ struct sof_module_api_build_info{
 	union sof_module_api_version api_version_number;
 };
 
-#endif /* __MODULE_API_VER_H__ */
+#endif /* __SOF_API_MODULE_API_VER_H__ */
