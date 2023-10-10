@@ -5,7 +5,7 @@ set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_LIST_DIR}/../../cmake/xtensa-toolchain
 project(dummy)
 
 # list of modules to be built and included into this loadable library
-set(MODULES_LIST dummy down_mixer)
+set(MODULES_LIST down_mixer)
 
 # toml file for rimage to generate manifets
 set(TOML "${CMAKE_CURRENT_LIST_DIR}/dummy_mtl.toml")
