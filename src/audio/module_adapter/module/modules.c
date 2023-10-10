@@ -54,7 +54,7 @@ DECLARE_TR_CTX(intel_codec_tr, SOF_UUID(intel_uuid), LOG_LEVEL_INFO);
  *
  * \return: zero on success
  *          error code on failure
- */
+ */__attribute__((optimize("-O0")))
 static int modules_init(struct processing_module *mod)
 {
 	uint32_t module_entry_point;
@@ -137,6 +137,7 @@ static int modules_init(struct processing_module *mod)
 					(struct module_interface *)md->module_adapter;
 
 		ret = mod_in->init(mod);
+		mod->priv.ops = mod_in;
 	} else {
 		ret = iadk_wrapper_init(md->module_adapter);
 	}
