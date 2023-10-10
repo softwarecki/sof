@@ -35,12 +35,34 @@ foreach(MODULE ${MODULES_LIST})
 	)
 
 	target_link_options(${MODULE} PRIVATE
-		"-nostdlib" "-nodefaultlibs"
+		#"-nostdlib" 
+		#"-nodefaultlibs"
+		#"-Wl,-lgcc"
+#"-Wl,--entry=0"
+"-Wl,--build-id=sha1"
+#"-Wl,--print-gc-sections"
 		"-Wl,--no-undefined" "-Wl,--unresolved-symbols=report-all" "-Wl,--error-unresolved-symbols"
-		#"-Wl,--gc-sections"	# may remove .bss and that will result in rimage error, do not use for now
+		"-Wl,--gc-sections"	# may remove .bss and that will result in rimage error, do not use for now
 		"-Wl,-Map,$<TARGET_FILE:${MODULE}>.map"	# optional: just for debug
 		"-T" "${MODULE}_ldscripts/elf32xtensa.x"
 	)
+
+#LDFLAGS := -Wl,--no-undefined
+#LDFLAGS += -Wl,--unresolved-symbols=report-all
+#LDFLAGS += -Wl,--error-unresolved-symbols
+#LDFLAGS += -Wl,--gc-sections
+#LDFLAGS += -Wl,-z -Wl,relro
+#LDFLAGS += -Wl,-z -Wl,combreloc
+#LDFLAGS += -Wl,-z -Wl,now
+#LDFLAGS += -Wl,-q
+#LDFLAGS += -Wl,--entry=0
+#LDFLAGS += -Wl,--build-id=sha1
+#ifeq (1,$(VERBOSE))
+#  LDFLAGS += -Wl,--print-gc-sections
+#  LDFLAGS += -Wl,--verbose
+#endif
+#LDFLAGS += $(foreach libdir,$(sort $(dir $(STATIC_LIBRARIES))),-L$(libdir))
+#LDLIBS := $(foreach libname,$(patsubst lib%.a,%,$(notdir $(STATIC_LIBRARIES))),-l$(libname))
 endforeach()
 
 set(RIMAGE_OUTPUT_FILE ${PROJECT_NAME}_noextmft)

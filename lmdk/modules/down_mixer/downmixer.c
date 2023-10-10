@@ -4,15 +4,18 @@
  * Author: Adrian Warecki <adrian.warecki@intel.com>
  */
 
+#include <string.h>
+
 #include <module/generic.h>
+#include <module/api_ver.h>
 #include <iadk/adsp_error_code.h>
+#include <rimage/sof/user/manifest.h>
+
 #if 0
 #include <sof/lib/uuid.h>
 #include <sof/trace/trace.h>
 #include <user/trace.h>
 #include <module/generic.h>
-#include <rimage/sof/user/manifest.h>
-#include <sof/audio/module_adapter/library/module_api_ver.h>
 
 //#include <ipc4/base-config.h>
 #endif
@@ -59,7 +62,6 @@ DECLARE_TR_CTX(down_mixer_comp_tr, SOF_UUID(down_mixer_comp_uuid),
 	       LOG_LEVEL_INFO);
 #endif
 
-#define ADSP_BUILD_INFO_FORMAT 0
 
 static const struct native_system_agent *native_sys_agent;
 
@@ -590,8 +592,8 @@ static int reset(struct processing_module *mod)
 /* just stubs for now. Remove these after making these ops optional in the module adapter */
 __attribute__((optimize("-O0")))
 static int prepare(struct processing_module *mod,
-				 struct sof_source __sparse_cache **sources, int num_of_sources,
-				 struct sof_sink __sparse_cache **sinks, int num_of_sinks)
+				 struct sof_source **sources, int num_of_sources,
+				 struct sof_sink **sinks, int num_of_sinks)
 {
 	return 0;
 }
@@ -630,12 +632,12 @@ static struct module_interface down_mixer_interface = {
 struct sof_module_api_build_info downmix_build_info __attribute__((section(".buildinfo"))) = {
 	ADSP_BUILD_INFO_FORMAT,
 	{
-		((0x3FF & 5)  << 20) |
-		((0x3FF & 0) << 10) |
-		((0x3FF & 0)  << 0)
+		((0x3FF & SOF_MODULE_API_MAJOR_VERSION)  << 20) |
+		((0x3FF & SOF_MODULE_API_MIDDLE_VERSION) << 10) |
+		((0x3FF & SOF_MODULE_API_MINOR_VERSION)  << 0)
 }
 };
-
+__attribute__((optimize("-O0")))
 static void *entry_point(void *mod_cfg, void *parent_ppl, void **mod_ptr)
 {
 	native_sys_agent = *(const struct native_system_agent **)mod_ptr;
