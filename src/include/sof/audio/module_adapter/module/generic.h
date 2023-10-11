@@ -24,7 +24,6 @@
 #include "modules.h"
 #endif
 
-#define module_get_private_data(mod) (mod->priv.private)
 #define MAX_BLOB_SIZE 8192
 #define MODULE_MAX_SOURCES 8
 

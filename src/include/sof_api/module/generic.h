@@ -16,6 +16,8 @@
 #include "interface.h"
 #include "../ipc4/base-config.h"
 
+#define module_get_private_data(mod) (mod->priv.private)
+
 /**
  * \struct module_config
  * \brief Module config container, used for both config types.
