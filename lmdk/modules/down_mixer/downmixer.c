@@ -5,11 +5,15 @@
  */
 
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 
 #include <module/generic.h>
 #include <module/api_ver.h>
 #include <iadk/adsp_error_code.h>
 #include <rimage/sof/user/manifest.h>
+#include <audio/source_api.h>
+#include <audio/sink_api.h>
 
 #if 0
 #include <sof/lib/uuid.h>
@@ -86,7 +90,6 @@ ErrorCode::Type DownmixerModuleFactory::Create(
  * Module specific initialization procedure, called as part of
  * module_adapter component creation in .new()
  */
-__attribute__((optimize("-O0")))
 static int init(struct processing_module *mod)
 {
 	struct module_data *mod_data = &mod->priv;
@@ -308,6 +311,181 @@ static int init(struct processing_module *mod)
 	return ADSP_NO_ERROR;
 }
 
+/**
+ * Module specific processing procedure
+ * This procedure is responsible to consume
+ * samples provided by the module_adapter and produce/output the processed
+ * ones back to module_adapter.
+ *
+ * there are 3 versions of the procedure, the difference is the format of
+ * input/output data
+ *
+ * the module MUST implement one and ONLY one of them
+ *
+ * process_audio_stream and process_raw_data are depreciated and will be removed
+ * once pipeline learns to use module API directly (without module adapter)
+ * modules that need such processing should use proper wrappers
+ *
+ * process
+ *	- sources are handlers to source API struct source*[]
+ *	- sinks are handlers to sink API struct sink*[]
+ */
+static int process(struct processing_module *mod, struct sof_source **sources, int num_of_sources,
+		   struct sof_sink **sinks, int num_of_sinks)
+{
+	struct module_self_data *const self = module_get_private_data(mod);
+
+
+	uint8_t const *input0_pos, *input0_start, *input0_end;
+	uint8_t const *input1_pos, *input1_start, *input1_end;
+	uint8_t *output_pos, *output_start, *output_end;
+	unsigned int input0_channels, input1_channels, output_channels;
+	size_t input0_avail, input1_avail, output_avail;
+	size_t input0_size, input1_size, output_size;
+	size_t input0_frame_bytes, input1_frame_bytes, output_frame_bytes;
+	size_t frames_processed, frames_to_process, loop_frames;
+	int32_t divider_input_0, divider_input_1;
+	size_t i, k;
+	int ret;
+
+	output_channels = sink_get_channels(sinks[0]);
+	output_avail = sink_get_free_size(sinks[0]);
+	output_frame_bytes = sink_get_frame_bytes(sinks[0]);
+	ret = sink_get_buffer(sinks[0], output_avail, (void**)&output_pos,
+			      (void**)&output_start, &output_size);
+	if (ret)
+		return ADSP_FATAL_FAILURE;
+	output_end = output_start + output_size;
+
+	input0_channels = source_get_channels(sources[0]);
+	input0_avail = source_get_data_available(sources[0]);
+	input0_frame_bytes = source_get_frame_bytes(sources[0]);
+	ret = source_get_data(sources[0], input0_avail, (const void**)&input0_pos,
+			      (const void**)&input0_start, &input0_size);
+	if (ret) {
+		sink_commit_buffer(sinks[0], 0);
+		return ADSP_FATAL_FAILURE;
+	}
+	input0_end = input0_start + input0_size;
+
+	if (self->input1_channels_count_ && num_of_sources) {
+		input1_channels = source_get_channels(sources[1]);
+		input1_avail = source_get_data_available(sources[1]);
+		input1_frame_bytes = source_get_frame_bytes(sources[1]);
+		ret = source_get_data(sources[1], input1_avail, (const void**)&input1_pos, 
+				      (const void**)&input1_start, &input1_size);
+		if (ret) {
+			sink_commit_buffer(sinks[0], 0);
+			source_release_data(sources[0], 0);
+			return ADSP_FATAL_FAILURE;
+		}
+		input1_end = input1_start + input1_size;
+
+	} else {
+		input1_channels = 0;
+		input1_avail = 0;
+		input1_frame_bytes = 0;
+	}
+
+	frames_to_process = sink_get_free_frames(sinks[0]);
+	i = source_get_data_frames_available(sources[0]);
+	if (i < frames_to_process)
+		frames_to_process = i;
+
+
+	/* If reference pin is not connected or module is in bypass mode, set input1_channels to 0.
+	 * This allows to skip reference pin content in the processing loop */
+	if (input1_avail <= input0_avail || (self->processing_mode_ != MODULE_PROCESSING_NORMAL))
+		input1_channels = 0;
+
+	/* Apply processing of the input chunks and generate the output chunk */
+	divider_input_0 = self->config_.divider_input_0;
+	divider_input_1 = self->config_.divider_input_1;
+
+	if (self->processing_mode_ == MODULE_PROCESSING_BYPASS) {
+		divider_input_0 = self->input0_channels_count_;
+		/* local_input1_channel_count is already set to 0 in BYPASS mode */
+	}
+
+	frames_processed = 0;
+	while (frames_processed < frames_to_process) {
+		/* Number of frames to buffer wrap */
+		loop_frames = (input0_end - input0_pos) / input0_frame_bytes;
+
+		i = (input1_end - input1_pos) / input1_frame_bytes;
+		if (input1_channels && i < loop_frames)
+			loop_frames = i;
+
+		i = (output_end - output_pos) / output_frame_bytes;
+		if (i < loop_frames)
+			loop_frames = i;
+
+
+		if (self->bits_per_sample_ == IPC4_DEPTH_16BIT) {
+			int16_t const *in0 = (int16_t const *)input0_pos;
+			int16_t const *in1 = (int16_t const *)input1_pos;
+			int16_t *out = (int16_t *)output_pos;
+
+			for (i = 0; i < loop_frames; i++) {
+				int32_t mixed_sample = 0;
+				for (k = 0; k < input0_channels; k++)
+					mixed_sample += ((int32_t)in0[input0_channels * i + k] /
+							 divider_input_0);
+
+				for (k = 0; k < input1_channels; k++)
+					mixed_sample += ((int32_t)in1[input0_channels * i + k] /
+							 divider_input_1);
+
+				for (k = 0; k < output_channels; k++)
+					out[output_channels * i + k] = (int16_t)mixed_sample;
+			}
+		}
+
+		if (self->bits_per_sample_ == IPC4_DEPTH_32BIT) {
+			int32_t const *in0 = (int32_t const *)input0_pos;
+			int32_t const *in1 = (int32_t const *)input1_pos;
+			int32_t *out = (int32_t *)output_pos;
+
+			for (i = 0; i < loop_frames; i++) {
+				int64_t mixed_sample = 0;
+				for (k = 0; k < input0_channels; k++)
+					mixed_sample += ((int64_t)in0[input0_channels * i + k] /
+							 divider_input_0);
+
+				for (k = 0; k < input1_channels; k++)
+					mixed_sample += ((int64_t)in1[input1_channels * i + k] /
+							 divider_input_1);
+
+				for (k = 0; k < output_channels; k++)
+					out[output_channels * i + k] = (int32_t)mixed_sample;
+			}
+		}
+
+		input0_pos += loop_frames * input0_frame_bytes;
+		if (input0_pos >= input0_end)
+			input0_pos -= input0_size;
+
+		if (input1_channels) {
+			input1_pos += loop_frames * input1_frame_bytes;
+			if (input1_pos >= input1_end)
+				input1_pos -= input1_size;
+		}
+
+		output_pos += loop_frames * output_frame_bytes;
+		if (output_pos >= output_end)
+			output_pos -= output_size;
+
+		frames_processed += loop_frames;
+	}
+
+	/* commit the processed data */
+	source_release_data(sources[0], frames_to_process * input0_frame_bytes);
+	if (input1_channels)
+		source_release_data(sources[1], frames_to_process * input1_frame_bytes);
+	sink_commit_buffer(sinks[0], frames_to_process * output_frame_bytes);
+
+	return PROCESS_SUCCEED;
+}
 
 /**
  * process_raw_data (depreciated)
@@ -623,7 +801,8 @@ static struct module_interface down_mixer_interface = {
 	.init  = init,
 	.prepare = prepare,
 	.free = free,
-	.process_raw_data = process_raw_data,
+	.process = process,
+	//.process_raw_data = process_raw_data,
 	.set_processing_mode = set_processing_mode,
  	.get_processing_mode = get_processing_mode,
 	.reset = reset,
