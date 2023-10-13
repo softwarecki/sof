@@ -7,7 +7,6 @@
 #ifndef __SOF_API_AUDIO_SOURCE_API_H__
 #define __SOF_API_AUDIO_SOURCE_API_H__
 
-#include <sof/common.h>
 #include <errno.h>
 #include <stdint.h>
 #include <stdbool.h>
