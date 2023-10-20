@@ -15,86 +15,24 @@
 #include <audio/source_api.h>
 #include <audio/sink_api.h>
 
-#if 0
-#include <sof/lib/uuid.h>
-#include <sof/trace/trace.h>
-#include <user/trace.h>
-#include <module/generic.h>
-
-//#include <ipc4/base-config.h>
-#endif
-
 #include "downmixer.h"
-//#include <logger.h>
 
-#if 1
+/* Logging is temporary disabled */
 #define LOG_MESSAGE(...) 
-#else
-#define LOG_MESSAGE2(...) comp_err(__VA_ARGS__)
-#define LOG_MESSAGE(level, msg, x, ...) \
-	LOG_MESSAGE2(mod->dev, "downmixer(): " msg, ##__VA_ARGS__)
-#endif
-
-//#include <sof/audio/coefficients/up_down_mixer/up_down_mixer.h>
-//#include <sof/audio/up_down_mixer/up_down_mixer.h>
-//#include <sof/audio/buffer.h>
-//#include <sof/audio/format.h>
-//#include <sof/audio/pipeline.h>
-//#include <rtos/panic.h>
-//#include <sof/ipc/msg.h>
-//#include <rtos/alloc.h>
-//#include <rtos/cache.h>
-//#include <rtos/init.h>
-//#include <sof/lib/memory.h>
-//#include <sof/lib/notifier.h>
-//#include <sof/list.h>
-//#include <rtos/string.h>
-//#include <sof/ut.h>
-//#include <errno.h>
-//#include <stddef.h>
-//#include <stdint.h>
-
-
-
-#if 0
-LOG_MODULE_REGISTER(down_mixer, CONFIG_SOF_LOG_LEVEL);
-
-DECLARE_SOF_RT_UUID("down_mixer", down_mixer_comp_uuid, 0xf1f13412, 0x3412,
-		    0x341a, 0x8c, 0x08, 0x88, 0x4b, 0xe5, 0xd1, 0x4f, 0xaa);
-
-DECLARE_TR_CTX(down_mixer_comp_tr, SOF_UUID(down_mixer_comp_uuid),
-	       LOG_LEVEL_INFO);
-#endif
-
 
 static const struct native_system_agent *native_sys_agent;
-
 static struct module_self_data self_data;
-
-
-#if 0
-using namespace intel_adsp;
-
-DECLARE_LOADABLE_MODULE(DownmixerModule,
-			DownmixerModuleFactory)
-
-
-ErrorCode::Type DownmixerModuleFactory::Create(
-	SystemAgentInterface &system_agent,
-	ModulePlaceholder *module_placeholder,
-	ModuleInitialSettings initial_settings)
-{
-#endif
 
 /**
  * Module specific initialization procedure, called as part of
  * module_adapter component creation in .new()
  */
-static int init(struct processing_module *mod)
+static int downmix_init(struct processing_module *mod)
 {
 	struct module_data *mod_data = &mod->priv;
 	const struct module_config *dst = &mod_data->cfg;
 	const struct ipc4_base_module_extended_cfg * const down_mixer = dst->init_data;
+	struct module_self_data *const self;
 	struct up_down_mixer_data *cd;
 	int i;
 
@@ -121,16 +59,14 @@ static int init(struct processing_module *mod)
 
 	/* check that at least 1 audio format has been retrieved for 1 input pin
 	 * and there are no more audio formats than the module input pins count. */
-	if ((in_pins_format_count < 1) || (in_pins_format_count > INPUT_NUMBER))
-	{
+	if ((in_pins_format_count < 1) || (in_pins_format_count > INPUT_NUMBER)) {
 		LOG_MESSAGE(CRITICAL, "Invalid count of input pin formats received (%d)",
 			    LOG_ENTRY, in_pins_format_count);
 		return ADSP_INVALID_SETTINGS;
 	}
 
 	/* check that one audio format is available for the output pin */
-	if (out_pins_format_count != 1)
-	{
+	if (out_pins_format_count != 1) {
 		LOG_MESSAGE(CRITICAL, "Invalid count of output pin formats received (%d)",
 			    LOG_ENTRY, out_pins_format_count);
 		return ADSP_INVALID_SETTINGS;
@@ -145,8 +81,7 @@ static int init(struct processing_module *mod)
 	const struct ipc4_output_pin_format output_pin_format = output_formats[0];
 
 	/* check that output audio format is for output pin0 */
-	if (output_pin_format.pin_index != 0)
-	{
+	if (output_pin_format.pin_index != 0) {
 		LOG_MESSAGE(CRITICAL, "Retrieved audio format is associated to an invalid output pin index (%d)",
 			    LOG_ENTRY, output_pin_format.pin_index);
 		return ADSP_INVALID_SETTINGS;
@@ -159,8 +94,7 @@ static int init(struct processing_module *mod)
 	for (int i = 0 ; i < INPUT_NUMBER ; i++)
 		input_pin_format[i].ibs = 0;
 
-	for (i = 0 ; i < in_pins_format_count ; i++)
-	{
+	for (i = 0 ; i < in_pins_format_count ; i++) {
 		const struct ipc4_input_pin_format *const pin_format = &input_formats[i];
 
 		/* check that audio format retrieved for input is assigned to an existing module pin. */
@@ -176,16 +110,14 @@ static int init(struct processing_module *mod)
 	}
 
 	/* check that at least input pin0 has an audio format */
-	if (!input_pin_format[0].ibs)
-	{
+	if (!input_pin_format[0].ibs) {
 		LOG_MESSAGE(CRITICAL, "Input pin 0 is not configured", LOG_ENTRY);
 		return ADSP_INVALID_SETTINGS;
 	}
 
 	/* check that input pin 0 and output pin 0 have compatible audio format */
 	if ((input_pin_format[0].audio_fmt.sampling_frequency != output_pin_format.audio_fmt.sampling_frequency) ||
-	    (input_pin_format[0].audio_fmt.depth != output_pin_format.audio_fmt.depth))
-	{
+	    (input_pin_format[0].audio_fmt.depth != output_pin_format.audio_fmt.depth)) {
 		LOG_MESSAGE(CRITICAL, "Input pin0 and output pin0 formats have incompatible audio format: "
 			    "input_freq = %d, output_freq = %d, input_bit_depth = %d, output_bit_depth = %d.",
 			    LOG_ENTRY, input_pin_format[0].audio_fmt.sampling_frequency,
@@ -199,8 +131,7 @@ static int init(struct processing_module *mod)
 	if ((input_pin_format[0].audio_fmt.channels_count!= 1)
 	    && (input_pin_format[0].audio_fmt.channels_count!= 2)
 	    && (input_pin_format[0].audio_fmt.channels_count!= 3)
-	    && (input_pin_format[0].audio_fmt.channels_count!= 4))
-	{
+	    && (input_pin_format[0].audio_fmt.channels_count!= 4)) {
 		LOG_MESSAGE(CRITICAL, "Input pin0 format has unsupported channels count (%d)",
 			    LOG_ENTRY, input_pin_format[0].audio_fmt.channels_count);
 		return ADSP_INVALID_SETTINGS;
@@ -208,8 +139,7 @@ static int init(struct processing_module *mod)
 
 	/* check that bit_depth value is supported */
 	if ((output_pin_format.audio_fmt.depth != IPC4_DEPTH_16BIT) &&
-	    (output_pin_format.audio_fmt.depth != IPC4_DEPTH_32BIT))
-	{
+	    (output_pin_format.audio_fmt.depth != IPC4_DEPTH_32BIT)) {
 		LOG_MESSAGE(CRITICAL, " bit depth in audio format is not supported (%d)",
 			    LOG_ENTRY, output_pin_format.audio_fmt.depth);
 		return ADSP_INVALID_SETTINGS;
@@ -217,8 +147,7 @@ static int init(struct processing_module *mod)
 
 	/* check that output pin has a supported channels count */
 	if ((output_pin_format.audio_fmt.channels_count != 1)
-	    && (output_pin_format.audio_fmt.channels_count != 2))
-	{
+	    && (output_pin_format.audio_fmt.channels_count != 2)) {
 		LOG_MESSAGE(CRITICAL, "Output pin format has unsupported channels count (%d)",
 			    LOG_ENTRY, output_pin_format.audio_fmt.channels_count);
 		return ADSP_INVALID_SETTINGS;
@@ -226,8 +155,7 @@ static int init(struct processing_module *mod)
 
 	/* check that pin 0 ibs can be divided by the bytes size of "samples group" */
 	if ((input_pin_format[0].ibs * 8) % (input_pin_format[0].audio_fmt.depth *
-					     input_pin_format[0].audio_fmt.channels_count))
-	{
+					     input_pin_format[0].audio_fmt.channels_count)) {
 		LOG_MESSAGE(CRITICAL, "ibs0*8 shall be a multiple of samples group value: "
 			    "ibs = %d, input_bit_depth = %d.",
 			    LOG_ENTRY, input_pin_format[0].ibs,
@@ -237,8 +165,7 @@ static int init(struct processing_module *mod)
 
 	/* check that obs can be divided by the "bit_depth" settings value */
 	if ((output_pin_format.obs * 8) % (output_pin_format.audio_fmt.depth *
-					   output_pin_format.audio_fmt.channels_count))
-	{
+					   output_pin_format.audio_fmt.channels_count)) {
 		LOG_MESSAGE(CRITICAL, "obs0*8 shall be a multiple of samples group value"
 			    "obs = %d, output_bit_depth = %d.",
 			    LOG_ENTRY, output_pin_format.obs,
@@ -246,13 +173,12 @@ static int init(struct processing_module *mod)
 		return ADSP_INVALID_SETTINGS;
 	}
 
-	if (input_pin_format[1].ibs)
-	{
+	if (input_pin_format[1].ibs) {
 		/* if some audio format is available to configure the input pin 1
 		 * check that input pin 0 and pin 1 have compatible audio format */
-		if ((input_pin_format[0].audio_fmt.sampling_frequency != input_pin_format[1].audio_fmt.sampling_frequency) ||
-		    (input_pin_format[0].audio_fmt.depth != input_pin_format[1].audio_fmt.depth))
-		{
+		if ((input_pin_format[0].audio_fmt.sampling_frequency !=
+		     input_pin_format[1].audio_fmt.sampling_frequency) ||
+		    (input_pin_format[0].audio_fmt.depth != input_pin_format[1].audio_fmt.depth)) {
 			LOG_MESSAGE(CRITICAL, "Input pin0 and input pin1 formats have incompatible audio format : "
 				    "input_freq[0] = %d, input_freq[1] = %d, input_bit_depth[0] = %d, input_bit_depth[1] = %d.",
 				    LOG_ENTRY, input_pin_format[0].audio_fmt.sampling_frequency,
@@ -264,8 +190,7 @@ static int init(struct processing_module *mod)
 
 		/* check that input pin 1 has a supported channels count */
 		if ((input_pin_format[1].audio_fmt.channels_count != 1) &&
-		    (input_pin_format[1].audio_fmt.channels_count != 2) )
-		{
+		    (input_pin_format[1].audio_fmt.channels_count != 2)) {
 			LOG_MESSAGE(CRITICAL, "Input pin1 format has unsupported channels count (%d)",
 				    LOG_ENTRY, input_pin_format[1].audio_fmt.channels_count);
 			return ADSP_INVALID_SETTINGS;
@@ -298,7 +223,7 @@ static int init(struct processing_module *mod)
 	LOG_MESSAGE(VERBOSE, "Create, output_pin_format: interleaving_style = %d, number_of_channels = %d, audio_fmt.valid_bit_depth = %d, sample_type = %d", LOG_ENTRY, output_pin_format.audio_fmt.interleaving_style, output_pin_format.audio_fmt.channels_count, output_pin_format.audio_fmt.valid_bit_depth, output_pin_format.audio_fmt.s_type);
 
 	mod_data->private = &self_data;
-	struct module_self_data *const self = mod->priv.private;
+	struct module_self_data *const self = module_get_private_data(mod);
 	self->bits_per_sample_ = output_pin_format.audio_fmt.depth;
 	self->input0_channels_count_ = input_pin_format[0].audio_fmt.channels_count;
 	self->input1_channels_count_ = input1_channels_count;
@@ -306,8 +231,7 @@ static int init(struct processing_module *mod)
 	self->processing_mode_ = MODULE_PROCESSING_NORMAL;
 	self->config_.divider_input_0 = self->input0_channels_count_ + self->input1_channels_count_;
 	self->config_.divider_input_1 = self->config_.divider_input_0;
-	volatile int ix = 0;
-	while (ix);
+
 	return ADSP_NO_ERROR;
 }
 
@@ -330,7 +254,7 @@ static int init(struct processing_module *mod)
  *	- sources are handlers to source API struct source*[]
  *	- sinks are handlers to sink API struct sink*[]
  */
-static int process(struct processing_module *mod, struct sof_source **sources, int num_of_sources,
+static int downmix_process(struct processing_module *mod, struct sof_source **sources, int num_of_sources,
 		   struct sof_sink **sinks, int num_of_sinks)
 {
 	struct module_self_data *const self = module_get_private_data(mod);
@@ -368,7 +292,7 @@ static int process(struct processing_module *mod, struct sof_source **sources, i
 	}
 	input0_end = input0_start + input0_size;
 
-	if (self->input1_channels_count_ && num_of_sources) {
+	if (self->input1_channels_count_ && num_of_sources > 1) {
 		input1_channels = source_get_channels(sources[1]);
 		input1_avail = source_get_data_available(sources[1]);
 		input1_frame_bytes = source_get_frame_bytes(sources[1]);
@@ -412,9 +336,11 @@ static int process(struct processing_module *mod, struct sof_source **sources, i
 		/* Number of frames to buffer wrap */
 		loop_frames = (input0_end - input0_pos) / input0_frame_bytes;
 
-		i = (input1_end - input1_pos) / input1_frame_bytes;
-		if (input1_channels && i < loop_frames)
-			loop_frames = i;
+		if (input1_channels) {
+			i = (input1_end - input1_pos) / input1_frame_bytes;
+			if (input1_channels && i < loop_frames)
+				loop_frames = i;
+		}
 
 		i = (output_end - output_pos) / output_frame_bytes;
 		if (i < loop_frames)
@@ -487,168 +413,18 @@ static int process(struct processing_module *mod, struct sof_source **sources, i
 	return PROCESS_SUCCEED;
 }
 
-/**
- * process_raw_data (depreciated)
- *	- sources are input_stream_buffer[]
- *	    - sources[].data is a pointer to raw audio data
- *	- sinks are output_stream_buffer[]
- *	    - sinks[].data is a pointer to raw audio data
- *
- * Note that purpose of the source code presented below is to demonstrate usage
- * of the ADSP System API.
- * It might not be optimized enough for efficient computation.
- * Processed output = (Pin0Ch1/Div0 + Pin0Ch2/Div0 + Pin0Ch3/Div0 + Pin0Ch4/Div0) + (Pin1Ch1/Div1 + Pin0Ch2/Div1)
- * If module output is configured in 2 channel, output is dual mono */
-#define DEBUG() LOG_MESSAGE(CRITICAL, "%s:%d", LOG_ENTRY, __FUNCTION__, __LINE__)
-int down_line;
-__attribute__((optimize("-O0")))
-static int process_raw_data(struct processing_module *mod, 
-			    struct input_stream_buffer *input_stream_buffers,
-			    int num_input_buffers,
-			    struct output_stream_buffer *output_stream_buffers,
-			    int num_output_buffers)
-{
-	volatile int ix = 0;
-	while (ix);
-
-	struct module_self_data *const self = &self_data;// module_get_private_data(mod);
-	size_t i, k;
-	down_line = __LINE__;
-	uint8_t const* input_buffer_0 = input_stream_buffers[0].data;
-	/* if input1_channels_count_ is worth 0, the pin 1 has not been configured
-	 * and shall be discarded */
-	uint8_t const* input_buffer_1 = (self->input1_channels_count_) ?
-		input_stream_buffers[1].data : NULL;
-	uint8_t* output_buffer = output_stream_buffers[0].data;
-	size_t data_size_0 = input_stream_buffers[0].size;
-	size_t data_size_1 = input_stream_buffers[1].size;
-	size_t data_size_per_channel =
-		//((output_stream_buffers[0].size / self->output_channels_count_) <=
-		// (data_size_0 / self->input0_channels_count_)) ?
-		//output_stream_buffers[0].size / self->output_channels_count_ :
-		data_size_0 / self->input0_channels_count_;
-	down_line = __LINE__;
-
-	//LOG_MESSAGE(CRITICAL, "%s:%d output_stream_buffers[0].size %u, self->output_channels_count_ %u, self->input0_channels_count_ %u, data_size_0 %u", LOG_ENTRY, __FUNCTION__, __LINE__,
-//		    (uint32_t)output_stream_buffers[0].size, (uint32_t)self->output_channels_count_, (uint32_t)self->input0_channels_count_, (uint32_t)data_size_0);
-
-
-	size_t output_data_size = self->output_channels_count_*data_size_per_channel;
-	/* ref_pin_active value indicates whether ref pin is connected and has been configured */
-	bool const ref_pin_active = (input_buffer_1 != NULL) &&
-		((data_size_1 / self->input1_channels_count_) >= data_size_per_channel);
-	down_line = __LINE__;
-
-	/* If reference pin is not connected or module is in bypass mode,
-	 * set local_input1_channel_count to 0.
-	 * This allows to skip reference pin content in the processing loop */
-	size_t local_input1_channel_count = (ref_pin_active &&
-					     (self->processing_mode_ == MODULE_PROCESSING_NORMAL)) ?
-		self->input1_channels_count_ : 0;
-	/*
-	LOG_MESSAGE(CRITICAL, "%s:%d input_buffer_0 %p, input_buffer_1 %p, output_buffer %p, data_size_0 %u, data_size_1 %u, data_size_per_channel %u output_data_size %u, local_input1_channel_count %u", LOG_ENTRY, __FUNCTION__, __LINE__,
-		    (void*)input_buffer_0, (void*)input_buffer_1, (void*)output_buffer,
-		    (uint32_t)data_size_0, (uint32_t)data_size_1,
-		    (uint32_t)data_size_per_channel, (uint32_t)output_data_size,
-		    (uint32_t)local_input1_channel_count);
-		    */
-	down_line = __LINE__;
-
-	/* Input not connected. */
-	if (input_buffer_0 == NULL) {
-		down_line = __LINE__;
-		DEBUG();
-		input_stream_buffers[0].consumed = 0;
-		output_stream_buffers[0].size = 0;
-		return PROCESS_SUCCEED;
-	}
-	down_line = __LINE__;
-
-	/* Apply processing of the input chunks and generate the output chunk */
-	int32_t divider_input_0 = self->config_.divider_input_0;
-	int32_t divider_input_1 = self->config_.divider_input_1;
-	down_line = __LINE__;
-
-	if (self->processing_mode_ == MODULE_PROCESSING_BYPASS) {
-		down_line = __LINE__;
-		divider_input_0 = self->input0_channels_count_;
-		/* local_input1_channel_count is already set to 0 in BYPASS mode */
-	}
-	down_line = __LINE__;
-
-	if (self->bits_per_sample_ == IPC4_DEPTH_16BIT)
-	{
-		down_line = __LINE__;
-		int16_t const* input_buffer16_0 = (int16_t const*)input_buffer_0;
-		int16_t const* input_buffer16_1 = (int16_t const*)input_buffer_1;
-		int16_t* output_buffer16 = (int16_t*)output_buffer;
-		down_line = __LINE__;
-
-		for (i = 0; i < output_data_size / self->output_channels_count_ / sizeof(int16_t); i++)
-		{
-			down_line = __LINE__;
-			int32_t mixed_sample = 0;
-			for (k = 0; k < self->input0_channels_count_; k++)
-				mixed_sample += ((int32_t) input_buffer16_0[self->input0_channels_count_*i + k]/divider_input_0);
-			down_line = __LINE__;
-			for (k = 0; k < local_input1_channel_count; k++)
-				mixed_sample += ((int32_t) input_buffer16_1[local_input1_channel_count*i + k]/divider_input_1);
-			for (k = 0; k < self->output_channels_count_; k++)
-				output_buffer16[self->output_channels_count_*i + k] = (int16_t) mixed_sample;
-			down_line = __LINE__;
-		}
-	}
-	down_line = __LINE__;
-
-	if (self->bits_per_sample_ == IPC4_DEPTH_32BIT)
-	{
-		down_line = __LINE__;
-		int32_t const* input_buffer32_0 = (int32_t const*)input_buffer_0;
-		int32_t const* input_buffer32_1 = (int32_t const*)input_buffer_1;
-		int32_t* output_buffer32 = (int32_t*)output_buffer;
-		down_line = __LINE__;
-
-		for (i = 0 ; i < output_data_size / self->output_channels_count_ / sizeof(int32_t) ; i++)
-		{
-			down_line = __LINE__;
-			int64_t mixed_sample = 0;
-			for (k = 0; k < self->input0_channels_count_; k++)
-				mixed_sample += ((int64_t) input_buffer32_0[self->input0_channels_count_*i + k]/divider_input_0);
-			down_line = __LINE__;
-			for (k = 0; k < local_input1_channel_count; k++)
-				mixed_sample += ((int64_t) input_buffer32_1[local_input1_channel_count*i + k]/divider_input_1);
-			down_line = __LINE__;
-			for (k = 0; k < self->output_channels_count_; k++)
-				output_buffer32[self->output_channels_count_*i + k] = (int32_t) mixed_sample;
-			down_line = __LINE__;
-		}
-	}
-	down_line = __LINE__;
-
-	// Update output buffer data size
-	input_stream_buffers[0].consumed = data_size_per_channel * self->input0_channels_count_;
-	down_line = __LINE__;
-	if (input_buffer_1) {
-		input_stream_buffers[1].consumed = data_size_per_channel * self->input1_channels_count_;
-		down_line = __LINE__;
-	}
-	output_stream_buffers[0].size = output_data_size;
-	down_line = __LINE__;
-
-	return PROCESS_SUCCEED;
-}
 #if 0
 
 /**
-* Set module configuration for the given configuration ID
-*
-* If the complete configuration message is greater than MAX_BLOB_SIZE bytes, the
-* transmission will be split into several smaller fragments.
-* In this case the ADSP System will perform multiple calls to SetConfiguration() until
-* completion of the configuration message sending.
-* \note config_id indicates ID of the configuration message only on the first fragment
-* sending, otherwise it is set to 0.
-*/
+ * Set module configuration for the given configuration ID
+ *
+ * If the complete configuration message is greater than MAX_BLOB_SIZE bytes, the
+ * transmission will be split into several smaller fragments.
+ * In this case the ADSP System will perform multiple calls to SetConfiguration() until
+ * completion of the configuration message sending.
+ * \note config_id indicates ID of the configuration message only on the first fragment
+ * sending, otherwise it is set to 0.
+ */
 int (*set_configuration)(struct processing_module *mod,
 			 uint32_t config_id,
 			 enum module_cfg_fragment_position pos, uint32_t data_offset_size,
@@ -725,8 +501,7 @@ ErrorCode::Type DownmixerModule::GetConfiguration(
 /**
  * Set processing mode for the module
  */
-__attribute__((optimize("-O0")))
-static int set_processing_mode(struct processing_module *mod, enum module_processing_mode mode)
+static int downmix_set_processing_mode(struct processing_module *mod, enum module_processing_mode mode)
 {
 	struct module_self_data *const self = mod->priv.private;
 
@@ -741,8 +516,7 @@ static int set_processing_mode(struct processing_module *mod, enum module_proces
 /**
  * Get the current processing mode for the module
  */
-__attribute__((optimize("-O0")))
-static enum module_processing_mode get_processing_mode(struct processing_module *mod)
+static enum module_processing_mode downmix_get_processing_mode(struct processing_module *mod)
 {
 	struct module_self_data *const self = mod->priv.private;
 
@@ -756,8 +530,7 @@ static enum module_processing_mode get_processing_mode(struct processing_module 
  * reset in .reset(). This should reset all parameters to their initial stage
  * and free all memory allocated during prepare().
  */
-__attribute__((optimize("-O0")))
-static int reset(struct processing_module *mod)
+static int downmix_reset(struct processing_module *mod)
 {
 	struct module_self_data *const self = mod->priv.private;
 
@@ -768,8 +541,7 @@ static int reset(struct processing_module *mod)
 }
 
 /* just stubs for now. Remove these after making these ops optional in the module adapter */
-__attribute__((optimize("-O0")))
-static int prepare(struct processing_module *mod,
+static int downmix_prepare(struct processing_module *mod,
 				 struct sof_source **sources, int num_of_sources,
 				 struct sof_sink **sinks, int num_of_sinks)
 {
@@ -777,35 +549,19 @@ static int prepare(struct processing_module *mod,
 }
 
 /* just stubs for now. Remove these after making these ops optional in the module adapter */
-__attribute__((optimize("-O0")))
-static int free(struct processing_module *mod)
+static int downmix_free(struct processing_module *mod)
 {
-	return 0;
-}
-
-static int passthrough_codec_process(struct processing_module *mod,
-			  struct input_stream_buffer *input_buffers, int num_input_buffers,
-			  struct output_stream_buffer *output_buffers, int num_output_buffers)
-{
-
-	/* copy the produced samples into the output buffer */
-	memcpy_s(output_buffers[0].data, mod->period_bytes, input_buffers[0].data,
-		 mod->period_bytes);
-	output_buffers[0].size = mod->period_bytes;
-	input_buffers[0].consumed = mod->period_bytes;
-
 	return 0;
 }
 
 static struct module_interface down_mixer_interface = {
-	.init  = init,
-	.prepare = prepare,
-	.free = free,
-	.process = process,
-	//.process_raw_data = process_raw_data,
-	.set_processing_mode = set_processing_mode,
- 	.get_processing_mode = get_processing_mode,
-	.reset = reset,
+	.init  = downmix_init,
+	//.prepare = downmix_prepare,
+	//.free = downmix_free,
+	.process = downmix_process,
+	.set_processing_mode = downmix_set_processing_mode,
+ 	.get_processing_mode = downmix_get_processing_mode,
+	.reset = downmix_reset,
 };
 
 struct sof_module_api_build_info downmix_build_info __attribute__((section(".buildinfo"))) = {
@@ -816,7 +572,7 @@ struct sof_module_api_build_info downmix_build_info __attribute__((section(".bui
 		((0x3FF & SOF_MODULE_API_MINOR_VERSION)  << 0)
 }
 };
-__attribute__((optimize("-O0")))
+
 static void *entry_point(void *mod_cfg, void *parent_ppl, void **mod_ptr)
 {
 	native_sys_agent = *(const struct native_system_agent **)mod_ptr;
