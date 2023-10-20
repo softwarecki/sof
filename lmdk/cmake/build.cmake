@@ -14,7 +14,7 @@ foreach(MODULE ${MODULES_LIST})
 	add_subdirectory(${LMDK_BASE}/modules/${MODULE} ${MODULE}_module)
 
 ###	set_target_properties(${MODULE} PROPERTIES OUTPUT_NAME ${MODULE}.mod)
-
+	target_compile_options(${MODULE} PUBLIC  "-g3")
 	target_include_directories(${MODULE} PRIVATE
 		"${LMDK_BASE}/include"
 		"${RIMAGE_INCLUDE_DIR}"
@@ -46,6 +46,7 @@ foreach(MODULE ${MODULES_LIST})
 		"-Wl,--gc-sections"	# may remove .bss and that will result in rimage error, do not use for now
 		"-Wl,-Map,$<TARGET_FILE:${MODULE}>.map"	# optional: just for debug
 		"-T" "${MODULE}_ldscripts/elf32xtensa.x"
+		"-g"
 	)
 
 #LDFLAGS := -Wl,--no-undefined
