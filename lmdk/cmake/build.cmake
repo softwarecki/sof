@@ -37,9 +37,12 @@ foreach(MODULE ${MODULES_LIST})
 	target_link_options(${MODULE} PRIVATE
 		#"-nostdlib" 
 		#"-nodefaultlibs"
+		"-nostartfiles"
+		#"-L/home/ilabuser/xtensa/XtDevTools/install/builds/RI-2022.10-linux/ace10_LX7HiFi4_2022_10/xtensa-elf/lib/xcc"
+		#"-lgcc"
 		#"-Wl,-lgcc"
 #"-Wl,--entry=0"
-"-Wl,--build-id=sha1"
+#"-Wl,--build-id=sha1"
 #"-Wl,--print-gc-sections"
 		"-Wl,--no-undefined" "-Wl,--unresolved-symbols=report-all" "-Wl,--error-unresolved-symbols"
 		"-Wl,--gc-sections"	# may remove .bss and that will result in rimage error, do not use for now
