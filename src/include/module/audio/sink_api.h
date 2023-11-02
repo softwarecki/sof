@@ -114,7 +114,7 @@ struct sof_sink {
 	struct sof_audio_stream_params *audio_stream_params; /** pointer to audio params */
 };
 
-/*
+/**
  *
  * Public functions
  *
