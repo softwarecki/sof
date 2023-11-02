@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
-//
-// Copyright(c) 2023 Intel Corporation. All rights reserved.
-//
+/*
+ * Copyright(c) 2023 Intel Corporation. All rights reserved.
+ */
 
 #include <sof/audio/source_api.h>
 #include <sof/audio/source_api_implementation.h>
 #include <sof/audio/audio_stream.h>
+
+/* This file contains private source API functions intended for use only by the sof. */
 
 void source_init(struct sof_source *source, const struct source_ops *ops,
 		 struct sof_audio_stream_params *audio_stream_params)
@@ -92,7 +94,7 @@ void source_set_min_available(struct sof_source *source, size_t min_available)
 {
 	source->min_available = min_available;
 }
-
+x
 size_t source_get_min_available(struct sof_source *source)
 {
 	return source->min_available;

@@ -67,19 +67,13 @@ static inline unsigned int source_get_channels(struct sof_source *source)
 }
 
 /** get size of a single audio frame (in bytes) */
-static inline size_t source_get_frame_bytes(struct sof_source *source)
-{
-	return get_frame_bytes(source_get_frm_fmt(source), source_get_channels(source));
-}
+size_t source_get_frame_bytes(struct sof_source *source);
 
 /**
  * Retrieves size of available data (in frames)
  * return number of frames that are available for immediate use
  */
-static inline size_t source_get_data_frames_available(struct sof_source *source)
-{
-	return source_get_data_available(source) / source_get_frame_bytes(source);
-}
+size_t source_get_data_frames_available(struct sof_source *source);
 
 /**
  * Retrieves a fragment of circular data to be used by the caller (to read)
@@ -112,21 +106,8 @@ static inline size_t source_get_data_frames_available(struct sof_source *source)
  *
  * @retval -ENODATA if req_size is bigger than available data
  */
-static inline int source_get_data(struct sof_source *source, size_t req_size,
-				  void const **data_ptr, void const **buffer_start,
-				  size_t *buffer_size)
-{
-	int ret;
-
-	if (source->requested_read_frag_size)
-		return -EBUSY;
-
-	ret = source->ops->get_data(source, req_size, data_ptr, buffer_start, buffer_size);
-
-	if (!ret)
-		source->requested_read_frag_size = req_size;
-	return ret;
-}
+int source_get_data(struct sof_source *source, size_t req_size, void const **data_ptr,
+		    void const **buffer_start, size_t *buffer_size);
 
 /**
  * Releases fragment previously obtained by source_get_data()
@@ -142,26 +123,7 @@ static inline int source_get_data(struct sof_source *source, size_t req_size,
  *
  * @return proper error code (0  on success)
  */
-static inline int source_release_data(struct sof_source *source, size_t free_size)
-{
-	int ret;
-
-	/* Check if anything was obtained before for reading by source_get_data */
-	if (!source->requested_read_frag_size)
-		return -ENODATA;
-
-	/* limit size of data to be freed to previously obtained size */
-	if (free_size > source->requested_read_frag_size)
-		free_size = source->requested_read_frag_size;
-
-	ret = source->ops->release_data(source, free_size);
-
-	if (!ret)
-		source->requested_read_frag_size = 0;
-
-	source->num_of_bytes_processed += free_size;
-	return ret;
-}
+int source_release_data(struct sof_source *source, size_t free_size);
 
 /** set of functions for retrieve audio parameters */
 static inline enum sof_ipc_frame source_get_valid_fmt(struct sof_source *source)

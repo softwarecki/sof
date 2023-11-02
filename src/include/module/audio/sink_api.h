@@ -68,19 +68,13 @@ static inline uint32_t sink_get_channels(struct sof_sink *sink)
 }
 
 /** get size of a single audio frame (in bytes) */
-static inline size_t sink_get_frame_bytes(struct sof_sink *sink)
-{
-	return get_frame_bytes(sink_get_frm_fmt(sink), sink_get_channels(sink));
-}
+size_t sink_get_frame_bytes(struct sof_sink *sink);
 
 /**
  * Retrieves size of free space available in sink (in frames)
  * return number of free frames in buffer available to immediate filling
  */
-static inline size_t sink_get_free_frames(struct sof_sink *sink)
-{
-	return sink_get_free_size(sink) / sink_get_frame_bytes(sink);
-}
+size_t sink_get_free_frames(struct sof_sink *sink);
 
 /**
  * Get a circular buffer to operate on (to write).
@@ -101,20 +95,8 @@ static inline size_t sink_get_free_frames(struct sof_sink *sink)
  * @retval -ENODATA if req_size is bigger than free space
  *
  */
-static inline int sink_get_buffer(struct sof_sink *sink, size_t req_size,
-				  void **data_ptr, void **buffer_start, size_t *buffer_size)
-{
-	int ret;
-
-	if (sink->requested_write_frag_size)
-		return -EBUSY;
-
-	ret = sink->ops->get_buffer(sink, req_size, data_ptr, buffer_start, buffer_size);
-
-	if (!ret)
-		sink->requested_write_frag_size = req_size;
-	return ret;
-}
+int sink_get_buffer(struct sof_sink *sink, size_t req_size, void **data_ptr, void **buffer_start,
+		    size_t *buffer_size);
 
 /**
  * Commits that the buffer previously obtained by get_buffer is filled with data
@@ -128,26 +110,7 @@ static inline int sink_get_buffer(struct sof_sink *sink, size_t req_size,
  *	  commit_buffer with commit_size==MAXINT
  * @return proper error code (0  on success)
  */
-static inline int sink_commit_buffer(struct sof_sink *sink, size_t commit_size)
-{
-	int ret;
-
-	/* check if there was a buffer obtained for writing by sink_get_buffer */
-	if (!sink->requested_write_frag_size)
-		return -ENODATA;
-
-	/* limit size of data to be committed to previously obtained size */
-	if (commit_size > sink->requested_write_frag_size)
-		commit_size = sink->requested_write_frag_size;
-
-	ret = sink->ops->commit_buffer(sink, commit_size);
-
-	if (!ret)
-		sink->requested_write_frag_size = 0;
-
-	sink->num_of_bytes_processed += commit_size;
-	return ret;
-}
+int sink_commit_buffer(struct sof_sink *sink, size_t commit_size);
 
 /** set of functions for retrieve audio parameters */
 static inline int sink_set_frm_fmt(struct sof_sink *sink, enum sof_ipc_frame frame_fmt)
