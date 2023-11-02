@@ -61,3 +61,60 @@ size_t sink_get_free_frames(struct sof_sink *sink)
 	return sink_get_free_size(sink) /
 			sink_get_frame_bytes(sink);
 }
+
+int sink_set_valid_fmt(struct sof_sink *sink, enum sof_ipc_frame valid_sample_fmt)
+{
+	sink->audio_stream_params->valid_sample_fmt = valid_sample_fmt;
+	if (sink->ops->on_audio_format_set)
+		return sink->ops->on_audio_format_set(sink);
+	return 0;
+}
+
+int sink_set_rate(struct sof_sink *sink, unsigned int rate)
+{
+	sink->audio_stream_params->rate = rate;
+	if (sink->ops->on_audio_format_set)
+		return sink->ops->on_audio_format_set(sink);
+	return 0;
+}
+
+int sink_set_channels(struct sof_sink *sink, unsigned int channels)
+{
+	sink->audio_stream_params->channels = channels;
+	if (sink->ops->on_audio_format_set)
+		return sink->ops->on_audio_format_set(sink);
+	return 0;
+}
+
+int sink_set_buffer_fmt(struct sof_sink *sink, uint32_t buffer_fmt)
+{
+	sink->audio_stream_params->buffer_fmt = buffer_fmt;
+	if (sink->ops->on_audio_format_set)
+		return sink->ops->on_audio_format_set(sink);
+	return 0;
+}
+
+int sink_set_overrun(struct sof_sink *sink, bool overrun_permitted)
+{
+	sink->audio_stream_params->overrun_permitted = overrun_permitted;
+	if (sink->ops->on_audio_format_set)
+		return sink->ops->on_audio_format_set(sink);
+	return 0;
+}
+
+int sink_set_params(struct sof_sink *sink,
+		    struct sof_ipc_stream_params *params, bool force_update)
+{
+	if (sink->ops->audio_set_ipc_params)
+		return sink->ops->audio_set_ipc_params(sink, params, force_update);
+	return 0;
+}
+
+int sink_set_alignment_constants(struct sof_sink *sink,
+				 const uint32_t byte_align,
+				 const uint32_t frame_align_req)
+{
+	if (sink->ops->set_alignment_constants)
+		return sink->ops->set_alignment_constants(sink, byte_align, frame_align_req);
+	return 0;
+}

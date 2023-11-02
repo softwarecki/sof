@@ -94,8 +94,3 @@ void source_set_min_available(struct sof_source *source, size_t min_available)
 {
 	source->min_available = min_available;
 }
-x
-size_t source_get_min_available(struct sof_source *source)
-{
-	return source->min_available;
-}

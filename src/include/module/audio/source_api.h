@@ -141,4 +141,10 @@ static inline uint32_t source_get_buffer_fmt(struct sof_source *source)
 	return source->audio_stream_params->buffer_fmt;
 }
 
+static inline size_t source_get_min_available(struct sof_source *source)
+{
+	return source->min_available;
+}
+
+
 #endif /* __MODULE_AUDIO_SOURCE_API_H__ */
