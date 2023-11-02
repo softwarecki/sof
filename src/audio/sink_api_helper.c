@@ -4,7 +4,6 @@
  */
 
 #include <sof/audio/sink_api.h>
-#include <sof/audio/sink_api_implementation.h>
 #include <sof/audio/audio_stream.h>
 
 /* This file contains private sink API functions intended for use only by the sof. */

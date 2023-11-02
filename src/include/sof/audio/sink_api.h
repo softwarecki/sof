@@ -8,6 +8,20 @@
 #define __SOF_SINK_API_H__
 
 #include <module/audio/sink_api.h>
+//#include <sof/common.h>
+
+/**
+ * Init of the API, must be called before any operation
+ *
+ * @param sink pointer to the structure
+ * @param ops pointer to API operations
+ * @param audio_stream_params pointer to structure with audio parameters
+ *	  note that the audio_stream_params must be accessible by the caller core
+ *	  the implementation must ensure coherent access to the parameteres
+ *	  in case of i.e. cross core shared queue, it must be located in non-cached memory
+ */
+void sink_init(struct sof_sink *sink, const struct sink_ops *ops,
+	       struct sof_audio_stream_params *audio_stream_params);
 
 /**
  * Get total number of bytes processed by the sink (meaning - committed by sink_commit_buffer())
@@ -26,7 +40,6 @@ void sink_reset_num_of_processed_bytes(struct sof_sink *sink);
 bool sink_get_overrun(struct sof_sink *sink);
 
 /** set of functions for setting audio parameters */
-int sink_set_frm_fmt(struct sof_sink *sink, enum sof_ipc_frame frame_fmt);
 void sink_set_min_free_space(struct sof_sink *sink, size_t min_free_space);
 
 #endif /* __SOF_SINK_API_H__ */

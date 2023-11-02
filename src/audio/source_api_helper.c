@@ -4,7 +4,6 @@
  */
 
 #include <sof/audio/source_api.h>
-#include <sof/audio/source_api_implementation.h>
 #include <sof/audio/audio_stream.h>
 
 /* This file contains private source API functions intended for use only by the sof. */

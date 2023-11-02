@@ -352,6 +352,10 @@ zephyr_library_sources(
 
 	${SOF_SRC_PATH}/idc/zephyr_idc.c
 
+	# SOF module interface functions
+	${SOF_SRC_PATH}/module/audio/sink_api.c
+	${SOF_SRC_PATH}/module/audio/source_api.c
+
 	# Bridge wrapper between SOF and Zephyr APIs - Will shrink over time.
 	wrapper.c
 	edf_schedule.c

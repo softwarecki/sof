@@ -4,7 +4,6 @@
  */
 
 #include <sof/audio/sink_api.h>
-#include <sof/audio/sink_api_implementation.h>
 #include <sof/audio/audio_stream.h>
 
 /* This file contains public sink API functions that were too large to mark is as inline. */
@@ -56,10 +55,14 @@ int sink_set_frm_fmt(struct sof_sink *sink, enum sof_ipc_frame frame_fmt)
 	return 0;
 }
 
+size_t sink_get_frame_bytes(struct sof_sink *sink)
+{
+	return get_frame_bytes(sink_get_frm_fmt(sink), sink_get_channels(sink));
+}
+
 size_t sink_get_free_frames(struct sof_sink *sink)
 {
-	return sink_get_free_size(sink) /
-			sink_get_frame_bytes(sink);
+	return sink_get_free_size(sink) / sink_get_frame_bytes(sink);
 }
 
 int sink_set_valid_fmt(struct sof_sink *sink, enum sof_ipc_frame valid_sample_fmt)
@@ -102,16 +105,14 @@ int sink_set_overrun(struct sof_sink *sink, bool overrun_permitted)
 	return 0;
 }
 
-int sink_set_params(struct sof_sink *sink,
-		    struct sof_ipc_stream_params *params, bool force_update)
+int sink_set_params(struct sof_sink *sink, struct sof_ipc_stream_params *params, bool force_update)
 {
 	if (sink->ops->audio_set_ipc_params)
 		return sink->ops->audio_set_ipc_params(sink, params, force_update);
 	return 0;
 }
 
-int sink_set_alignment_constants(struct sof_sink *sink,
-				 const uint32_t byte_align,
+int sink_set_alignment_constants(struct sof_sink *sink, const uint32_t byte_align,
 				 const uint32_t frame_align_req)
 {
 	if (sink->ops->set_alignment_constants)

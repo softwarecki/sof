@@ -12,7 +12,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "sink_api_implementation.h"
 #include "audio_stream.h"
 #include "format.h"
 
@@ -45,6 +44,79 @@
  * NOTE: the module should get a complete portion of space it needs for processing, fill it
  *       than release. The reason is - the depending on the implementation, the calls may be
  *       expensive - may involve some data moving in memory, cache writebacks, etc.
+ *
+ */
+
+/* forward def */
+struct sof_sink;
+struct sof_audio_stream_params;
+struct sof_ipc_stream_params;
+
+/**
+ * this is a definition of internals of sink API
+ *
+ * The clients of stream API should use access functions provided below!
+ *
+ */
+
+struct sink_ops {
+	/**
+	 * see comment of sink_get_free_size()
+	 */
+	size_t (*get_free_size)(struct sof_sink *sink);
+
+	/**
+	 * see comment of sink_get_buffer()
+	 */
+	int (*get_buffer)(struct sof_sink *sink, size_t req_size,
+			  void **data_ptr, void **buffer_start, size_t *buffer_size);
+
+	/**
+	 * see comment of sink_commit_buffer()
+	 */
+	int (*commit_buffer)(struct sof_sink *sink, size_t commit_size);
+
+	/**
+	 * OPTIONAL: Notification to the sink implementation about changes in audio format
+	 *
+	 * Once any of *audio_stream_params elements changes, the implementation of
+	 * sink may need to perform some extra operations.
+	 * This callback will be called immediately after any change
+	 *
+	 * @retval 0 if success, negative if new parameters are not supported
+	 */
+	int (*on_audio_format_set)(struct sof_sink *sink);
+
+	/**
+	 * OPTIONAL
+	 * see sink_set_params comments
+	 */
+	int (*audio_set_ipc_params)(struct sof_sink *sink,
+				    struct sof_ipc_stream_params *params, bool force_update);
+
+	/**
+	 * OPTIONAL
+	 * see comment for sink_set_alignment_constants
+	 */
+	int (*set_alignment_constants)(struct sof_sink *sink,
+				       const uint32_t byte_align,
+				       const uint32_t frame_align_req);
+};
+
+/** internals of sink API. NOT TO BE MODIFIED OUTSIDE OF sink_api.c */
+struct sof_sink {
+	const struct sink_ops *ops;	  /** operations interface */
+	size_t requested_write_frag_size; /** keeps number of bytes requested by get_buffer() */
+	size_t num_of_bytes_processed;	  /** processed bytes counter */
+	size_t min_free_space;		  /** minimum buffer space required by the module using sink
+					    *  it is module's OBS as declared in module bind IPC
+					    */
+	struct sof_audio_stream_params *audio_stream_params; /** pointer to audio params */
+};
+
+/*
+ *
+ * Public functions
  *
  */
 
@@ -113,15 +185,7 @@ int sink_get_buffer(struct sof_sink *sink, size_t req_size, void **data_ptr, voi
 int sink_commit_buffer(struct sof_sink *sink, size_t commit_size);
 
 /** set of functions for retrieve audio parameters */
-static inline int sink_set_frm_fmt(struct sof_sink *sink, enum sof_ipc_frame frame_fmt)
-{
-	sink->audio_stream_params->frame_fmt = frame_fmt;
-
-	/* notify the implementation */
-	if (sink->ops->on_audio_format_set)
-		return sink->ops->on_audio_format_set(sink);
-	return 0;
-}
+int sink_set_frm_fmt(struct sof_sink *sink, enum sof_ipc_frame frame_fmt);
 
 static inline enum sof_ipc_frame sink_get_valid_fmt(struct sof_sink *sink)
 {
@@ -180,6 +244,5 @@ static inline size_t sink_get_min_free_space(struct sof_sink *sink)
 {
 	return sink->min_free_space;
 }
-
 
 #endif /* __MODULE_AUDIO_SINK_API_H__ */
