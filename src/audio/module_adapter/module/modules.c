@@ -104,17 +104,13 @@ static int modules_init(struct processing_module *mod)
 
 	/* Check if module is FDK */
 	if (mod_buildinfo->format == IADK_MODULE_API_BUILD_INFO_FORMAT &&
-	    mod_buildinfo->api_version_number.fields.major == IADK_MODULE_API_MAJOR_VERSION &&
-	    mod_buildinfo->api_version_number.fields.middle == IADK_MODULE_API_MIDDLE_VERSION &&
-	    mod_buildinfo->api_version_number.fields.minor == IADK_MODULE_API_MINOR_VERSION) {
+	    mod_buildinfo->api_version_number.full == IADK_MODULE_API_CURRENT_VERSION) {
 		mod_adp = system_agent_start(md->module_entry_point, module_id,
 					     instance_id, 0, log_handle, &mod_cfg);
 	} else
 	/* Check if module is native */
 	if (mod_buildinfo->format == SOF_MODULE_API_BUILD_INFO_FORMAT &&
-	    mod_buildinfo->api_version_number.fields.major == SOF_MODULE_API_MAJOR_VERSION &&
-	    mod_buildinfo->api_version_number.fields.middle == SOF_MODULE_API_MIDDLE_VERSION &&
-	    mod_buildinfo->api_version_number.fields.minor == SOF_MODULE_API_MINOR_VERSION) {
+	    mod_buildinfo->api_version_number.full == SOF_MODULE_API_CURRENT_VERSION) {
 		/* If start agent for sof loadable */
 		mod->is_native_sof = true;
 		mod_adp = native_system_agent_start(mod->sys_service, md->module_entry_point,

@@ -10,6 +10,9 @@
 
 #include <stdint.h>
 
+#define MODULE_API_VERSION_ENCODE(a, b, c) \
+	(((0x3FF & (a)) << 20) | ((0x3FF & (b)) << 10) | (0x3FF & (c)))
+
 #define SOF_MODULE_API_BUILD_INFO_FORMAT	0x80000000
 
 /*
@@ -19,6 +22,9 @@
 #define SOF_MODULE_API_MAJOR_VERSION	5
 #define SOF_MODULE_API_MIDDLE_VERSION	0
 #define SOF_MODULE_API_MINOR_VERSION	0
+
+#define SOF_MODULE_API_CURRENT_VERSION	MODULE_API_VERSION_ENCODE(SOF_MODULE_API_MAJOR_VERSION,	\
+	SOF_MODULE_API_MIDDLE_VERSION, SOF_MODULE_API_MINOR_VERSION)
 
 union sof_module_api_version {
 	uint32_t full;
@@ -37,12 +43,7 @@ struct sof_module_api_build_info {
 
 #define DECLARE_LOADABLE_MODULE_API_VERSION(name)						\
 struct sof_module_api_build_info name ## _build_info __attribute__((section(".buildinfo"))) = {	\
-	SOF_MODULE_API_BUILD_INFO_FORMAT,							\
-	{											\
-		((0x3FF & SOF_MODULE_API_MAJOR_VERSION)  << 20) |				\
-		((0x3FF & SOF_MODULE_API_MIDDLE_VERSION) << 10) |				\
-		((0x3FF & SOF_MODULE_API_MINOR_VERSION)  << 0)					\
-	}											\
+	SOF_MODULE_API_BUILD_INFO_FORMAT, SOF_MODULE_API_CURRENT_VERSION			\
 }
 
 #endif /* __MODULE_MODULE_API_VER_H__ */
