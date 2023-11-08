@@ -497,14 +497,7 @@ static struct module_interface down_mixer_interface = {
 	.reset = downmix_reset,
 };
 
-struct sof_module_api_build_info downmix_build_info __attribute__((section(".buildinfo"))) = {
-	ADSP_BUILD_INFO_FORMAT,
-	{
-		((0x3FF & SOF_MODULE_API_MAJOR_VERSION)  << 20) |
-		((0x3FF & SOF_MODULE_API_MIDDLE_VERSION) << 10) |
-		((0x3FF & SOF_MODULE_API_MINOR_VERSION)  << 0)
-}
-};
+DECLARE_LOADABLE_MODULE_API_VERSION(downmix);
 
 static void *entry_point(void *mod_cfg, void *parent_ppl, void **mod_ptr)
 {
