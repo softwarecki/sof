@@ -211,11 +211,13 @@ int module_prepare(struct processing_module *mod,
 	if (mod->priv.state < MODULE_INITIALIZED)
 		return -EPERM;
 #endif
-	ret = md->ops->prepare(mod, sources, num_of_sources, sinks, num_of_sinks);
-	if (ret) {
-		comp_err(dev, "module_prepare() error %d: module specific prepare failed, comp_id %d",
-			 ret, dev_comp_id(dev));
-		return ret;
+	if (md->ops->prepare) {
+		ret = md->ops->prepare(mod, sources, num_of_sources, sinks, num_of_sinks);
+		if (ret) {
+			comp_err(dev, "module_prepare() error %d: module specific prepare failed, comp_id %d",
+				 ret, dev_comp_id(dev));
+			return ret;
+		}
 	}
 
 	/* After prepare is done we no longer need runtime configuration
@@ -376,10 +378,12 @@ int module_free(struct processing_module *mod)
 	int ret;
 	struct module_data *md = &mod->priv;
 
-	ret = md->ops->free(mod);
-	if (ret)
-		comp_warn(mod->dev, "module_free(): error: %d for %d",
-			  ret, dev_comp_id(mod->dev));
+	if (md->ops->free) {
+		ret = md->ops->free(mod);
+		if (ret)
+			comp_warn(mod->dev, "module_free(): error: %d for %d",
+				  ret, dev_comp_id(mod->dev));
+	}
 
 	/* Free all memory shared by module_adapter & module */
 	md->cfg.avail = false;
