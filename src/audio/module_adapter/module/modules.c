@@ -63,6 +63,7 @@ static int modules_init(struct processing_module *mod)
 	struct comp_dev *dev = mod->dev;
 	const struct ipc4_base_module_cfg *src_cfg = &md->cfg.base_cfg;
 	byte_array_t mod_cfg;
+	bool is_native_sof = false;
 
 	mod_cfg.data = (uint8_t *)md->cfg.init_data;
 	/* Intel modules expects DW size here */
@@ -110,7 +111,7 @@ static int modules_init(struct processing_module *mod)
 	if (mod_buildinfo->format == SOF_MODULE_API_BUILD_INFO_FORMAT &&
 	    mod_buildinfo->api_version_number.full == SOF_MODULE_API_CURRENT_VERSION) {
 		/* If start agent for sof loadable */
-		mod->is_native_sof = true;
+		is_native_sof = true;
 		md->ops = native_system_agent_start(mod->sys_service, md->module_entry_point,
 						    module_id, instance_id, 0, log_handle,
 						    &mod_cfg);
@@ -136,7 +137,7 @@ static int modules_init(struct processing_module *mod)
 	int ret;
 
 	/* Call module specific init function if exists. */
-	if (mod->is_native_sof) {
+	if (is_native_sof) {
 		const struct module_interface *mod_in = md->ops;
 
 		/* The order of preference */
@@ -178,85 +179,16 @@ static int modules_prepare(struct processing_module *mod,
 
 	comp_info(dev, "modules_prepare()");
 
-	/* Call module specific prepare function if exists. */
-	if (mod->is_native_sof) {
-		const struct module_interface *mod_in = mod->priv.ops;
-
-		ret = mod_in->prepare(mod, sources, num_of_sources, sinks, num_of_sinks);
-	} else {
-		ret = iadk_wrapper_prepare(mod->priv.module_adapter);
-	}
+	ret = iadk_wrapper_prepare(mod->priv.module_adapter);
 	return ret;
-}
-
-static int modules_init_process(struct processing_module *mod)
-{
-	struct module_data *codec = &mod->priv;
-	struct comp_dev *dev = mod->dev;
-
-	comp_dbg(dev, "modules_init_process()");
-
-	codec->mpd.produced = 0;
-	codec->mpd.consumed = 0;
-	codec->mpd.init_done = 1;
-
-	return 0;
 }
 
 static int modules_process(struct processing_module *mod,
 			   struct sof_source **sources, int num_of_sources,
 			   struct sof_sink **sinks, int num_of_sinks)
 {
-	if (!mod->is_native_sof)
-		return iadk_wrapper_process(mod->priv.module_adapter, sources,
-					    num_of_sources, sinks, num_of_sinks);
-
-	const struct module_interface *mod_in = mod->priv.ops;
-
-	return mod_in->process(mod, sources, num_of_sources, sinks, num_of_sinks);
-}
-
-static int modules_process_audio_stream(struct processing_module *mod,
-					struct input_stream_buffer *input_buffers,
-					int num_input_buffers,
-					struct output_stream_buffer *output_buffers,
-					int num_output_buffers)
-{
-	if (!mod->is_native_sof)
-		return -EOPNOTSUPP;
-
-	const struct module_interface *mod_in = mod->priv.ops;
-
-	return mod_in->process_audio_stream(mod, input_buffers, num_input_buffers,
-					    output_buffers, num_output_buffers);
-}
-
-/*
- * \brief modules_process_raw.
- * \param[in] mod - processing module pointer.
- *
- * \return: zero on success
- *          error code on failure
- */
-static int modules_process_raw(struct processing_module *mod,
-			       struct input_stream_buffer *input_buffers,
-			       int num_input_buffers,
-			       struct output_stream_buffer *output_buffers,
-			       int num_output_buffers)
-{
-	struct module_data *md = &mod->priv;
-
-	if (!mod->is_native_sof)
-		return -EOPNOTSUPP;
-
-	if (!md->mpd.init_done)
-		modules_init_process(mod);
-
-	/* Call module specific process function. */
-	const struct module_interface *mod_in = mod->priv.ops;
-
-	return mod_in->process_raw_data(mod, input_buffers, num_input_buffers,
-					output_buffers, num_output_buffers);
+	return iadk_wrapper_process(mod->priv.module_adapter, sources,
+				    num_of_sources, sinks, num_of_sinks);
 }
 
 /**
@@ -274,13 +206,7 @@ static int modules_free(struct processing_module *mod)
 	int ret = 0;
 
 	comp_info(dev, "modules_free()");
-	if (mod->is_native_sof) {
-		const struct module_interface *mod_in = mod->priv.ops;
-
-		ret = mod_in->free(mod);
-	} else {
-		ret = iadk_wrapper_free(mod->priv.module_adapter);
-	}
+	ret = iadk_wrapper_free(mod->priv.module_adapter);
 	rfree(md->mpd.in_buff);
 	rfree(md->mpd.out_buff);
 
@@ -313,12 +239,6 @@ static int modules_set_configuration(struct processing_module *mod, uint32_t con
 				     size_t fragment_size, uint8_t *response,
 				     size_t response_size)
 {
-	if (mod->is_native_sof) {
-		const struct module_interface *mod_in = mod->priv.ops;
-
-		return mod_in->set_configuration(mod, config_id, pos, data_offset_size, fragment,
-						 fragment_size, response, response_size);
-	}
 	return iadk_wrapper_set_configuration(mod->priv.module_adapter, config_id, pos,
 					      data_offset_size, fragment, fragment_size,
 					      response, response_size);
@@ -340,12 +260,6 @@ static int modules_get_configuration(struct processing_module *mod, uint32_t con
 				     uint32_t *data_offset_size, uint8_t *fragment,
 				     size_t fragment_size)
 {
-	if (mod->is_native_sof) {
-		const struct module_interface *mod_in = mod->priv.ops;
-
-		return mod_in->get_configuration(mod, config_id, data_offset_size,
-						 fragment, fragment_size);
-	}
 	return iadk_wrapper_get_configuration(mod->priv.module_adapter, config_id,
 					      MODULE_CFG_FRAGMENT_SINGLE, *data_offset_size,
 					      fragment, fragment_size);
@@ -361,11 +275,6 @@ static int modules_get_configuration(struct processing_module *mod, uint32_t con
 static int modules_set_processing_mode(struct processing_module *mod,
 				       enum module_processing_mode mode)
 {
-	if (mod->is_native_sof) {
-		const struct module_interface *mod_in = mod->priv.ops;
-
-		return mod_in->set_processing_mode(mod, mode);
-	}
 	return iadk_wrapper_set_processing_mode(mod->priv.module_adapter, mode);
 }
 
@@ -389,11 +298,6 @@ static enum module_processing_mode modules_get_processing_mode(struct processing
  */
 static int modules_reset(struct processing_module *mod)
 {
-	if (mod->is_native_sof) {
-		const struct module_interface *mod_in = mod->priv.ops;
-
-		return mod_in->reset(mod);
-	}
 	return iadk_wrapper_reset(mod->priv.module_adapter);
 }
 
@@ -401,9 +305,7 @@ static int modules_reset(struct processing_module *mod)
 static const struct module_interface interface = {
 	.init = modules_init,
 	.prepare = modules_prepare,
-	.process_raw_data = modules_process_raw,
 	.process = modules_process,
-	.process_audio_stream = modules_process_audio_stream,
 	.set_processing_mode = modules_set_processing_mode,
 	.get_processing_mode = modules_get_processing_mode,
 	.set_configuration = modules_set_configuration,
