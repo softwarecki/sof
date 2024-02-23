@@ -38,12 +38,13 @@ LOG_MODULE_REGISTER(module_adapter, CONFIG_SOF_LOG_LEVEL);
  */
 struct comp_dev *module_adapter_new(const struct comp_driver *drv,
 				    const struct comp_ipc_config *config,
-				    const struct module_interface *interface, const void *spec)
+				    const void *spec)
 {
 	int ret;
 	struct comp_dev *dev;
 	struct processing_module *mod;
 	struct module_config *dst;
+	const struct module_interface *const interface = drv->adapter_ops;
 
 	comp_cl_dbg(drv, "module_adapter_new() start");
 
@@ -104,7 +105,7 @@ struct comp_dev *module_adapter_new(const struct comp_driver *drv,
 		goto err;
 
 	/* Init processing module */
-	ret = module_init(mod, interface);
+	ret = module_init(mod);
 	if (ret) {
 		comp_err(dev, "module_adapter_new() %d: module initialization failed",
 			 ret);

@@ -47,19 +47,12 @@
 #endif
 
 #define DECLARE_MODULE_ADAPTER(adapter, uuid, tr) \
-static struct comp_dev *module_##adapter##_shim_new(const struct comp_driver *drv, \
-					 const struct comp_ipc_config *config, \
-					 const void *spec) \
-{ \
-	return module_adapter_new(drv, config, &(adapter), spec);\
-} \
-\
 static const struct comp_driver comp_##adapter##_module = { \
 	.type = SOF_COMP_MODULE_ADAPTER, \
 	.uid = SOF_RT_UUID(uuid), \
 	.tctx = &(tr), \
 	.ops = { \
-		.create = module_##adapter##_shim_new, \
+		.create = module_adapter_new, \
 		.prepare = module_adapter_prepare, \
 		.params = module_adapter_params, \
 		.copy = module_adapter_copy, \
@@ -161,7 +154,7 @@ struct module_processing_data {
 /* Module generic interfaces						     */
 /*****************************************************************************/
 int module_load_config(struct comp_dev *dev, const void *cfg, size_t size);
-int module_init(struct processing_module *mod, const struct module_interface *interface);
+int module_init(struct processing_module *mod);
 void *module_allocate_memory(struct processing_module *mod, uint32_t size, uint32_t alignment);
 int module_free_memory(struct processing_module *mod, void *ptr);
 void module_free_all_memory(struct processing_module *mod);
@@ -217,8 +210,7 @@ int module_bind(struct processing_module *mod, void *data);
 int module_unbind(struct processing_module *mod, void *data);
 
 struct comp_dev *module_adapter_new(const struct comp_driver *drv,
-				    const struct comp_ipc_config *config,
-				    const struct module_interface *interface, const void *spec);
+				    const struct comp_ipc_config *config, const void *spec);
 int module_adapter_prepare(struct comp_dev *dev);
 int module_adapter_params(struct comp_dev *dev, struct sof_ipc_stream_params *params);
 int module_adapter_copy(struct comp_dev *dev);
