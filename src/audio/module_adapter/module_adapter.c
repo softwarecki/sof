@@ -1255,13 +1255,13 @@ EXPORT_SYMBOL(module_adapter_copy);
 int module_adapter_trigger(struct comp_dev *dev, int cmd)
 {
 	struct processing_module *mod = comp_get_drvdata(dev);
-	struct module_data *md = &mod->priv;
+	const struct comp_driver *const drv = mod->dev->drv;
 
 	comp_dbg(dev, "module_adapter_trigger(): cmd %d", cmd);
 
 	/* handle host/DAI gateway modules separately */
 	if (dev->ipc_config.type == SOF_COMP_HOST || dev->ipc_config.type == SOF_COMP_DAI)
-		return md->ops->endpoint_ops->trigger(dev, cmd);
+		return drv->adapter_ops->endpoint_ops->trigger(dev, cmd);
 
 	/*
 	 * If the module doesn't support pause, keep it active along with the rest of the
@@ -1271,8 +1271,8 @@ int module_adapter_trigger(struct comp_dev *dev, int cmd)
 		dev->state = COMP_STATE_ACTIVE;
 		return PPL_STATUS_PATH_STOP;
 	}
-	if (md->ops->trigger)
-		return md->ops->trigger(mod, cmd);
+	if (drv->adapter_ops->trigger)
+		return drv->adapter_ops->trigger(mod, cmd);
 
 	return module_adapter_set_state(mod, dev, cmd);
 }
@@ -1394,10 +1394,10 @@ int module_adapter_get_hw_params(struct comp_dev *dev, struct sof_ipc_stream_par
 				 int dir)
 {
 	struct processing_module *mod = comp_get_drvdata(dev);
-	struct module_data *md = &mod->priv;
+	const struct comp_driver *const drv = mod->dev->drv;
 
-	if (md->ops->endpoint_ops && md->ops->endpoint_ops->dai_get_hw_params)
-		return md->ops->endpoint_ops->dai_get_hw_params(dev, params, dir);
+	if (drv->adapter_ops->endpoint_ops && drv->adapter_ops->endpoint_ops->dai_get_hw_params)
+		return drv->adapter_ops->endpoint_ops->dai_get_hw_params(dev, params, dir);
 
 	return -EOPNOTSUPP;
 }
@@ -1415,10 +1415,10 @@ EXPORT_SYMBOL(module_adapter_get_hw_params);
 int module_adapter_position(struct comp_dev *dev, struct sof_ipc_stream_posn *posn)
 {
 	struct processing_module *mod = comp_get_drvdata(dev);
-	struct module_data *md = &mod->priv;
+	const struct comp_driver *const drv = mod->dev->drv;
 
-	if (md->ops->endpoint_ops && md->ops->endpoint_ops->position)
-		return md->ops->endpoint_ops->position(dev, posn);
+	if (drv->adapter_ops->endpoint_ops && drv->adapter_ops->endpoint_ops->position)
+		return drv->adapter_ops->endpoint_ops->position(dev, posn);
 
 	return -EOPNOTSUPP;
 }
@@ -1435,10 +1435,10 @@ EXPORT_SYMBOL(module_adapter_position);
 int module_adapter_ts_config_op(struct comp_dev *dev)
 {
 	struct processing_module *mod = comp_get_drvdata(dev);
-	struct module_data *md = &mod->priv;
+	const struct comp_driver *const drv = mod->dev->drv;
 
-	if (md->ops->endpoint_ops && md->ops->endpoint_ops->dai_ts_config)
-		return md->ops->endpoint_ops->dai_ts_config(dev);
+	if (drv->adapter_ops->endpoint_ops && drv->adapter_ops->endpoint_ops->dai_ts_config)
+		return drv->adapter_ops->endpoint_ops->dai_ts_config(dev);
 
 	return -EOPNOTSUPP;
 }
@@ -1455,10 +1455,10 @@ EXPORT_SYMBOL(module_adapter_ts_config_op);
 int module_adapter_ts_start_op(struct comp_dev *dev)
 {
 	struct processing_module *mod = comp_get_drvdata(dev);
-	struct module_data *md = &mod->priv;
+	const struct comp_driver *const drv = mod->dev->drv;
 
-	if (md->ops->endpoint_ops && md->ops->endpoint_ops->dai_ts_start)
-		return md->ops->endpoint_ops->dai_ts_start(dev);
+	if (drv->adapter_ops->endpoint_ops && drv->adapter_ops->endpoint_ops->dai_ts_start)
+		return drv->adapter_ops->endpoint_ops->dai_ts_start(dev);
 
 	return -EOPNOTSUPP;
 }
@@ -1475,10 +1475,10 @@ EXPORT_SYMBOL(module_adapter_ts_start_op);
 int module_adapter_ts_stop_op(struct comp_dev *dev)
 {
 	struct processing_module *mod = comp_get_drvdata(dev);
-	struct module_data *md = &mod->priv;
+	const struct comp_driver *const drv = mod->dev->drv;
 
-	if (md->ops->endpoint_ops && md->ops->endpoint_ops->dai_ts_stop)
-		return md->ops->endpoint_ops->dai_ts_stop(dev);
+	if (drv->adapter_ops->endpoint_ops && drv->adapter_ops->endpoint_ops->dai_ts_stop)
+		return drv->adapter_ops->endpoint_ops->dai_ts_stop(dev);
 
 	return -EOPNOTSUPP;
 }
@@ -1500,10 +1500,10 @@ int module_adapter_ts_get_op(struct comp_dev *dev, struct timestamp_data *tsd)
 #endif
 {
 	struct processing_module *mod = comp_get_drvdata(dev);
-	struct module_data *md = &mod->priv;
+	const struct comp_driver *const drv = mod->dev->drv;
 
-	if (md->ops->endpoint_ops && md->ops->endpoint_ops->dai_ts_get)
-		return md->ops->endpoint_ops->dai_ts_get(dev, tsd);
+	if (drv->adapter_ops->endpoint_ops && drv->adapter_ops->endpoint_ops->dai_ts_get)
+		return drv->adapter_ops->endpoint_ops->dai_ts_get(dev, tsd);
 
 	return -EOPNOTSUPP;
 }

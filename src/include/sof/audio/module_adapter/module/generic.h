@@ -80,6 +80,7 @@ static const struct comp_driver comp_##adapter##_module = { \
 		.dai_ts_stop = module_adapter_ts_stop_op,\
 		.dai_ts_get = module_adapter_ts_get_op,\
 	}, \
+	.adapter_ops = &(adapter), \
 }; \
 \
 static SHARED_DATA struct comp_driver_info comp_module_##adapter##_info = { \
@@ -175,15 +176,15 @@ bool module_is_ready_to_process(struct processing_module *mod,
 				struct sof_sink **sinks,
 				int num_of_sinks)
 {
-	struct module_data *md = &mod->priv;
+	const struct comp_driver *const drv = mod->dev->drv;
 
 	/* LL module has to be always ready for processing */
 	if (mod->dev->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_LL)
 		return true;
 
-	if (md->ops->is_ready_to_process)
-		return md->ops->is_ready_to_process(mod, sources, num_of_sources,
-						    sinks, num_of_sinks);
+	if (drv->adapter_ops->is_ready_to_process)
+		return drv->adapter_ops->is_ready_to_process(mod, sources, num_of_sources,
+							     sinks, num_of_sinks);
 	/* default action - the module is ready if there's enough data for processing and enough
 	 * space to store result. IBS/OBS as declared in init_instance
 	 */
@@ -293,10 +294,10 @@ static inline int module_process_endpoint(struct processing_module *mod,
 					  struct output_stream_buffer *output_buffers,
 					  int num_output_buffers)
 {
-	struct module_data *md = &mod->priv;
+	const struct comp_driver *const drv = mod->dev->drv;
 
-	return md->ops->process_audio_stream(mod, input_buffers, num_input_buffers,
-					     output_buffers, num_output_buffers);
+	return drv->adapter_ops->process_audio_stream(mod, input_buffers, num_input_buffers,
+						      output_buffers, num_output_buffers);
 }
 
 #endif

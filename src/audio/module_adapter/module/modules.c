@@ -61,6 +61,7 @@ static int modules_init(struct processing_module *mod)
 	uint32_t module_entry_point;
 	struct module_data *md = &mod->priv;
 	struct comp_dev *dev = mod->dev;
+	struct comp_driver *drv = (struct comp_driver *)dev->drv;
 	const struct ipc4_base_module_cfg *src_cfg = &md->cfg.base_cfg;
 	byte_array_t mod_cfg;
 	bool is_native_sof = false;
@@ -112,9 +113,9 @@ static int modules_init(struct processing_module *mod)
 	    mod_buildinfo->api_version_number.full == SOF_MODULE_API_CURRENT_VERSION) {
 		/* If start agent for sof loadable */
 		is_native_sof = true;
-		md->ops = native_system_agent_start(mod->sys_service, md->module_entry_point,
-						    module_id, instance_id, 0, log_handle,
-						    &mod_cfg);
+		drv->adapter_ops = native_system_agent_start(mod->sys_service,
+							     md->module_entry_point, module_id,
+							     instance_id, 0, log_handle, &mod_cfg);
 	} else
 		return -ENOEXEC;
 
@@ -125,7 +126,7 @@ static int modules_init(struct processing_module *mod)
 
 	/* Call module specific init function if exists. */
 	if (is_native_sof) {
-		const struct module_interface *mod_in = md->ops;
+		const struct module_interface *mod_in = drv->adapter_ops;
 
 		/* The order of preference */
 		if (mod_in->process)
