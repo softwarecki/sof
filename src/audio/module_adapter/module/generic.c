@@ -75,12 +75,12 @@ err:
 	return ret;
 }
 
-int module_init(struct processing_module *mod, const struct module_interface *interface)
+int module_init(struct processing_module *mod)
 {
 	int ret;
 	struct module_data *md = &mod->priv;
 	struct comp_dev *dev = mod->dev;
-	const struct comp_driver *const drv = dev->drv;
+	const struct module_interface *const interface = dev->drv->adapter_ops;
 
 	comp_dbg(dev, "module_init() start");
 
@@ -91,7 +91,7 @@ int module_init(struct processing_module *mod, const struct module_interface *in
 		return -EPERM;
 #endif
 	if (!interface) {
-		comp_err(dev, "module_init(): could not find module interface for comp id %d",
+		comp_err(dev, "module_init(): module interface not defined for comp id %d",
 			 dev_comp_id(dev));
 		return -EIO;
 	}
@@ -105,13 +105,11 @@ int module_init(struct processing_module *mod, const struct module_interface *in
 		return -EIO;
 	}
 
-	((struct comp_driver *)drv)->adapter_ops = interface;
-
 	/* Init memory list */
 	list_init(&md->memory.mem_list);
 
 	/* Now we can proceed with module specific initialization */
-	ret = drv->adapter_ops->init(mod);
+	ret = interface->init(mod);
 	if (ret) {
 		comp_err(dev, "module_init() error %d: module specific init failed, comp id %d",
 			 ret, dev_comp_id(dev));
