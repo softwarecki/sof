@@ -2625,6 +2625,8 @@ sub process {
 	my $reported_maintainer_file = 0;
 	my $reported_abi_update = 0;
 	my $last_abi_file = '';
+	my $reported_mod_api_update = 0;
+	my $last_mod_api_file = '';
 	my $non_utf8_charset = 0;
 
 	my $last_git_commit_id_linenr = -1;
@@ -2740,6 +2742,15 @@ sub process {
 		     $line =~ /\+#define SOF_ABI_MINOR*/ ||
 		     $line =~ /\+#define SOF_ABI_PATCH*/)) {
 			$reported_abi_update = 1;
+		}
+
+		# Check if ABI is being updated.  If so, there's probably no need to
+		# emit the "does ABI need updating?" message on file add/move/delete
+		if ($SOF &&
+		    ($line =~ /\+#define SOF_MODULE_API_MAJOR_VERSION*/ ||
+		     $line =~ /\+#define SOF_MODULE_API_MIDDLE_VERSION*/ ||
+		     $line =~ /\+#define SOF_MODULE_API_MINOR_VERSION*/)) {
+			$reported_mod_api_update = 1;
 		}
 
 		push(@lines, $line);
@@ -3912,6 +3923,16 @@ sub process {
 			$last_abi_file = $realfile;
 			WARN("ABI update ??",
 			     "Please update ABI in accordance with http://semver.org\n" . $hereprev);
+		}
+
+# Loadable modules API version
+		if ($SOF && $realfile ne $last_mod_api_file &&
+		    $realfile =~ m@^(src/include/module/)@ &&
+		    $rawline =~ /^\+/ &&
+		    !$reported_mod_api_update) {
+			$last_mod_api_file = $realfile;
+			WARN("Modules API update ??",
+			     "Please update loadable modules API in accordance with http://semver.org\n" . $hereprev);
 		}
 
 # Block comments use * on subsequent lines
