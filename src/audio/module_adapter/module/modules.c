@@ -64,12 +64,12 @@ static int modules_init(struct processing_module *mod)
 	struct comp_driver *drv = (struct comp_driver *)dev->drv;
 	const struct ipc4_base_module_cfg *src_cfg = &md->cfg.base_cfg;
 	byte_array_t mod_cfg;
+	void *system_agent;
 	bool is_native_sof = false;
 
 	mod_cfg.data = (uint8_t *)md->cfg.init_data;
 	/* Intel modules expects DW size here */
 	mod_cfg.size = md->cfg.size >> 2;
-	md->private = mod;
 
 	struct comp_ipc_config *config = &(dev->ipc_config);
 
@@ -104,9 +104,11 @@ static int modules_init(struct processing_module *mod)
 	/* Check if module is FDK */
 	if (mod_buildinfo->format == IADK_MODULE_API_BUILD_INFO_FORMAT &&
 	    mod_buildinfo->api_version_number.full == IADK_MODULE_API_CURRENT_VERSION) {
-		md->module_adapter = (void *)system_agent_start(md->module_entry_point, module_id,
-								instance_id, 0, log_handle,
-								&mod_cfg);
+		system_agent = system_agent_start(module_entry_point, module_id,
+						  instance_id, 0, log_handle,
+						  &mod_cfg);
+
+		module_set_private_data(mod, system_agent);
 	} else
 	/* Check if module is native */
 	if (mod_buildinfo->format == SOF_MODULE_API_BUILD_INFO_FORMAT &&
@@ -141,7 +143,7 @@ static int modules_init(struct processing_module *mod)
 		ret = mod_in->init(mod);
 	} else {
 		mod->proc_type = MODULE_PROCESS_TYPE_SOURCE_SINK;
-		ret = iadk_wrapper_init(md->module_adapter);
+		ret = iadk_wrapper_init(system_agent);
 	}
 
 	return ret;
@@ -167,7 +169,7 @@ static int modules_prepare(struct processing_module *mod,
 
 	comp_info(dev, "modules_prepare()");
 
-	ret = iadk_wrapper_prepare(mod->priv.module_adapter);
+	ret = iadk_wrapper_prepare(module_get_private_data(mod));
 	return ret;
 }
 
@@ -175,7 +177,7 @@ static int modules_process(struct processing_module *mod,
 			   struct sof_source **sources, int num_of_sources,
 			   struct sof_sink **sinks, int num_of_sinks)
 {
-	return iadk_wrapper_process(mod->priv.module_adapter, sources,
+	return iadk_wrapper_process(module_get_private_data(mod), sources,
 				    num_of_sources, sinks, num_of_sinks);
 }
 
@@ -193,7 +195,7 @@ static int modules_free(struct processing_module *mod)
 	int ret = 0;
 
 	comp_info(dev, "modules_free()");
-	ret = iadk_wrapper_free(mod->priv.module_adapter);
+	ret = iadk_wrapper_free(module_get_private_data(mod));
 
 	/* Free module resources allocated in L2 memory. */
 	ret = lib_manager_free_module(dev->drv, config);
@@ -224,7 +226,7 @@ static int modules_set_configuration(struct processing_module *mod, uint32_t con
 				     size_t fragment_size, uint8_t *response,
 				     size_t response_size)
 {
-	return iadk_wrapper_set_configuration(mod->priv.module_adapter, config_id, pos,
+	return iadk_wrapper_set_configuration(module_get_private_data(mod), config_id, pos,
 					      data_offset_size, fragment, fragment_size,
 					      response, response_size);
 }
@@ -245,7 +247,7 @@ static int modules_get_configuration(struct processing_module *mod, uint32_t con
 				     uint32_t *data_offset_size, uint8_t *fragment,
 				     size_t fragment_size)
 {
-	return iadk_wrapper_get_configuration(mod->priv.module_adapter, config_id,
+	return iadk_wrapper_get_configuration(module_get_private_data(mod), config_id,
 					      MODULE_CFG_FRAGMENT_SINGLE, *data_offset_size,
 					      fragment, fragment_size);
 }
@@ -260,7 +262,7 @@ static int modules_get_configuration(struct processing_module *mod, uint32_t con
 static int modules_set_processing_mode(struct processing_module *mod,
 				       enum module_processing_mode mode)
 {
-	return iadk_wrapper_set_processing_mode(mod->priv.module_adapter, mode);
+	return iadk_wrapper_set_processing_mode(module_get_private_data(mod), mode);
 }
 
 /**
@@ -271,7 +273,7 @@ static int modules_set_processing_mode(struct processing_module *mod,
  */
 static enum module_processing_mode modules_get_processing_mode(struct processing_module *mod)
 {
-	return iadk_wrapper_get_processing_mode(mod->priv.module_adapter);
+	return iadk_wrapper_get_processing_mode(module_get_private_data(mod));
 }
 
 /**
@@ -283,7 +285,7 @@ static enum module_processing_mode modules_get_processing_mode(struct processing
  */
 static int modules_reset(struct processing_module *mod)
 {
-	return iadk_wrapper_reset(mod->priv.module_adapter);
+	return iadk_wrapper_reset(module_get_private_data(mod));
 }
 
 /* Processing Module Adapter API*/
