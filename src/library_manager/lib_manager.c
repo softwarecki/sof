@@ -688,14 +688,19 @@ static void __sparse_cache *lib_manager_allocate_store_mem(uint32_t size,
 }
 
 static int lib_manager_store_library(struct lib_manager_dma_ext *dma_ext,
-				     void __sparse_cache *man_buffer,
+				     const void __sparse_cache *man_buffer,
 				     uint32_t lib_id)
 {
 	void __sparse_cache *library_base_address;
-	struct sof_man_fw_desc *man_desc = (struct sof_man_fw_desc *)
+	const struct sof_man_fw_desc *man_desc = (struct sof_man_fw_desc *)
 		((__sparse_force uint8_t *)man_buffer + SOF_MAN_ELF_TEXT_OFFSET);
 	uint32_t preload_size = man_desc->header.preload_page_count * PAGE_SZ;
 	int ret;
+
+	if (preload_size < MAN_MAX_SIZE_V1_8) {
+		tr_err(&lib_manager_tr, "Invalid preload_size value %x.", preload_size);
+		return -EINVAL;
+	}
 
 	/* Prepare storage memory, note: it is never freed, library unloading is unsupported */
 	library_base_address = lib_manager_allocate_store_mem(preload_size, 0);
@@ -707,7 +712,7 @@ static int lib_manager_store_library(struct lib_manager_dma_ext *dma_ext,
 
 #if CONFIG_LIBRARY_AUTH_SUPPORT
 	/* AUTH_PHASE_FIRST - checks library manifest only. */
-	ret = lib_manager_auth_proc((__sparse_force void *)man_buffer,
+	ret = lib_manager_auth_proc((__sparse_force const void *)man_buffer,
 				    MAN_MAX_SIZE_V1_8, AUTH_PHASE_FIRST);
 	if (ret < 0) {
 		rfree((__sparse_force void *)library_base_address);
@@ -717,7 +722,7 @@ static int lib_manager_store_library(struct lib_manager_dma_ext *dma_ext,
 
 	/* Copy data from temp_mft_buf to destination memory (pointed by library_base_address) */
 	memcpy_s((__sparse_force void *)library_base_address, MAN_MAX_SIZE_V1_8,
-		 (__sparse_force void *)man_buffer, MAN_MAX_SIZE_V1_8);
+		 (__sparse_force const void *)man_buffer, MAN_MAX_SIZE_V1_8);
 
 	/* Copy remaining library part into storage buffer */
 	ret = lib_manager_store_data(dma_ext, (uint8_t __sparse_cache *)library_base_address +
