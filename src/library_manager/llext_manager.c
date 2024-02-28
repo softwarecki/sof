@@ -68,7 +68,7 @@ static int llext_manager_load_data_from_storage(void __sparse_cache *vma, void *
 	return memcpy_s((__sparse_force void *)vma, size, s_addr, size);
 }
 
-static int llext_manager_load_module(uint32_t module_id, struct sof_man_module *mod,
+static int llext_manager_load_module(uint32_t module_id, const struct sof_man_module *mod,
 				     struct sof_man_fw_desc *desc)
 {
 	struct lib_manager_mod_ctx *ctx = lib_manager_get_mod_ctx(module_id);
@@ -111,7 +111,7 @@ e_text:
 	return ret;
 }
 
-static int llext_manager_unload_module(uint32_t module_id, struct sof_man_module *mod,
+static int llext_manager_unload_module(uint32_t module_id, const struct sof_man_module *mod,
 				       struct sof_man_fw_desc *desc)
 {
 	struct lib_manager_mod_ctx *ctx = lib_manager_get_mod_ctx(module_id);
@@ -131,13 +131,13 @@ static int llext_manager_unload_module(uint32_t module_id, struct sof_man_module
 }
 
 static void __sparse_cache *llext_manager_get_bss_address(uint32_t module_id,
-							  struct sof_man_module *mod)
+							  const struct sof_man_module *mod)
 {
 	return (void __sparse_cache *)mod->segment[SOF_MAN_SEGMENT_BSS].v_base_addr;
 }
 
 static int llext_manager_allocate_module_bss(uint32_t module_id,
-					     uint32_t is_pages, struct sof_man_module *mod)
+					     uint32_t is_pages, const struct sof_man_module *mod)
 {
 	struct lib_manager_mod_ctx *ctx = lib_manager_get_mod_ctx(module_id);
 	size_t bss_size = ctx->segment_size[SOF_MAN_SEGMENT_BSS];
@@ -160,7 +160,7 @@ static int llext_manager_allocate_module_bss(uint32_t module_id,
 }
 
 static int llext_manager_free_module_bss(uint32_t module_id,
-					 struct sof_man_module *mod)
+					 const struct sof_man_module *mod)
 {
 	struct lib_manager_mod_ctx *ctx = lib_manager_get_mod_ctx(module_id);
 	size_t bss_size = ctx->segment_size[SOF_MAN_SEGMENT_BSS];
@@ -175,7 +175,7 @@ uint32_t llext_manager_allocate_module(const struct comp_driver *drv,
 				       const void *ipc_specific_config)
 {
 	struct sof_man_fw_desc *desc;
-	struct sof_man_module *mod;
+	const struct sof_man_module *mod;
 	const struct ipc4_base_module_cfg *base_cfg = ipc_specific_config;
 	int ret;
 	uint32_t module_id = IPC4_MOD_ID(ipc_config->id);
@@ -213,7 +213,7 @@ uint32_t llext_manager_allocate_module(const struct comp_driver *drv,
 int llext_manager_free_module(const uint32_t component_id)
 {
 	struct sof_man_fw_desc *desc;
-	struct sof_man_module *mod;
+	const struct sof_man_module *mod;
 	uint32_t module_id = IPC4_MOD_ID(component_id);
 	uint32_t entry_index = LIB_MANAGER_GET_MODULE_INDEX(module_id);
 	int ret;
