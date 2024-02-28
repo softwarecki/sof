@@ -486,13 +486,11 @@ static void lib_manager_update_sof_ctx(struct sof_man_fw_desc *desc, uint32_t li
 }
 
 #if CONFIG_INTEL_MODULES
-int lib_manager_register_module(struct sof_man_fw_desc *desc, int module_id)
+int lib_manager_register_module(const struct sof_man_module *const mod)
 {
-	uint32_t entry_index = LIB_MANAGER_GET_MODULE_INDEX(module_id);
 	/* allocate new  comp_driver_info */
 	struct comp_driver_info *new_drv_info;
 	struct comp_driver *drv = NULL;
-	struct sof_man_module *mod;
 	int ret;
 
 	new_drv_info = rmalloc(SOF_MEM_ZONE_RUNTIME_SHARED, 0,
@@ -518,8 +516,7 @@ int lib_manager_register_module(struct sof_man_fw_desc *desc, int module_id)
 
 	/* Fill the new_drv_info structure with already known parameters */
 	/* Check already registered components */
-	mod = (struct sof_man_module *)((uint8_t *)desc + SOF_MAN_MODULE_OFFSET(entry_index));
-	struct sof_uuid *uid = (struct sof_uuid *)&mod->uuid[0];
+	const struct sof_uuid *const uid = (const struct sof_uuid *)&mod->uuid[0];
 
 	declare_dynamic_module_adapter(drv, SOF_COMP_MODULE_ADAPTER, uid, &lib_manager_tr);
 
@@ -538,7 +535,7 @@ cleanup:
 }
 
 #else /* CONFIG_INTEL_MODULES */
-int lib_manager_register_module(struct sof_man_fw_desc *desc, int module_id)
+int lib_manager_register_module(const struct sof_man_module *const mod)
 {
 	tr_err(&lib_manager_tr,
 	       "lib_manager_register_module(): Dynamic module loading is not supported");
