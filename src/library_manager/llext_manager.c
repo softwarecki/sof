@@ -172,25 +172,21 @@ uint32_t llext_manager_allocate_module(const struct comp_driver *drv,
 				       const struct comp_ipc_config *ipc_config,
 				       const void *ipc_specific_config)
 {
-	struct sof_man_fw_desc *desc;
 	const struct sof_man_module *mod;
 	const struct ipc4_base_module_cfg *base_cfg = ipc_specific_config;
 	int ret;
 	uint32_t module_id = IPC4_MOD_ID(ipc_config->id);
-	uint32_t entry_index = LIB_MANAGER_GET_MODULE_INDEX(module_id);
 	struct lib_manager_mod_ctx *ctx = lib_manager_get_mod_ctx(module_id);
 
 	tr_dbg(&lib_manager_tr, "llext_manager_allocate_module(): mod_id: %#x",
 	       ipc_config->id);
 
-	desc = lib_manager_get_library_module_desc(module_id);
-	if (!ctx || !desc) {
+	mod = lib_manager_get_library_manifest(module_id);
+	if (!ctx || !mod) {
 		tr_err(&lib_manager_tr,
 		       "llext_manager_allocate_module(): failed to get module descriptor");
 		return 0;
 	}
-
-	mod = (struct sof_man_module *)((char *)desc + SOF_MAN_MODULE_OFFSET(entry_index));
 
 	for (unsigned int i = 0; i < ARRAY_SIZE(ctx->segment_size); i++)
 		ctx->segment_size[i] = mod->segment[i].flags.r.length * PAGE_SZ;
@@ -210,16 +206,13 @@ uint32_t llext_manager_allocate_module(const struct comp_driver *drv,
 
 int llext_manager_free_module(const uint32_t component_id)
 {
-	struct sof_man_fw_desc *desc;
 	const struct sof_man_module *mod;
 	uint32_t module_id = IPC4_MOD_ID(component_id);
-	uint32_t entry_index = LIB_MANAGER_GET_MODULE_INDEX(module_id);
 	int ret;
 
 	tr_dbg(&lib_manager_tr, "llext_manager_free_module(): mod_id: %#x", component_id);
 
-	desc = lib_manager_get_library_module_desc(module_id);
-	mod = (struct sof_man_module *)((char *)desc + SOF_MAN_MODULE_OFFSET(entry_index));
+	mod = lib_manager_get_library_manifest(module_id);
 
 	ret = llext_manager_unload_module(module_id, mod);
 	if (ret < 0)

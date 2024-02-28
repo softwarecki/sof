@@ -346,24 +346,20 @@ uint32_t lib_manager_allocate_module(const struct comp_driver *drv,
 				     const struct comp_ipc_config *ipc_config,
 				     const void *ipc_specific_config)
 {
-	struct sof_man_fw_desc *desc;
 	const struct sof_man_module *mod;
 	const struct ipc4_base_module_cfg *base_cfg = ipc_specific_config;
 	int ret;
 	uint32_t module_id = IPC4_MOD_ID(ipc_config->id);
-	uint32_t entry_index = LIB_MANAGER_GET_MODULE_INDEX(module_id);
 
 	tr_dbg(&lib_manager_tr, "lib_manager_allocate_module(): mod_id: %#x",
 	       ipc_config->id);
 
-	desc = lib_manager_get_library_module_desc(module_id);
-	if (!desc) {
+	mod = lib_manager_get_library_manifest(module_id);
+	if (!mod) {
 		tr_err(&lib_manager_tr,
 		       "lib_manager_allocate_module(): failed to get module descriptor");
 		return 0;
 	}
-
-	mod = (struct sof_man_module *)((char *)desc + SOF_MAN_MODULE_OFFSET(entry_index));
 
 	if (module_is_llext(mod))
 		return llext_manager_allocate_module(drv, ipc_config, ipc_specific_config);
@@ -397,16 +393,13 @@ err:
 
 int lib_manager_free_module(const uint32_t component_id)
 {
-	struct sof_man_fw_desc *desc;
 	const struct sof_man_module *mod;
 	uint32_t module_id = IPC4_MOD_ID(component_id);
-	uint32_t entry_index = LIB_MANAGER_GET_MODULE_INDEX(module_id);
 	int ret;
 
 	tr_dbg(&lib_manager_tr, "lib_manager_free_module(): mod_id: %#x", component_id);
 
-	desc = lib_manager_get_library_module_desc(module_id);
-	mod = (struct sof_man_module *)((char *)desc + SOF_MAN_MODULE_OFFSET(entry_index));
+	mod = lib_manager_get_library_manifest(module_id);
 
 	if (module_is_llext(mod))
 		return llext_manager_free_module(component_id);
@@ -461,16 +454,6 @@ void lib_manager_init(void)
 		sof->ext_library = &loader_ext_lib;
 }
 
-struct sof_man_fw_desc *lib_manager_get_library_module_desc(int module_id)
-{
-	struct lib_manager_mod_ctx *ctx = lib_manager_get_mod_ctx(module_id);
-	uint8_t *buffptr = (uint8_t *)(ctx ? ctx->desc : NULL);
-
-	if (!buffptr)
-		return NULL;
-	return (struct sof_man_fw_desc *)(buffptr + SOF_MAN_ELF_TEXT_OFFSET);
-}
-
 static void lib_manager_update_sof_ctx(struct sof_man_fw_desc *desc, uint32_t lib_id)
 {
 	struct ext_library *_ext_lib = ext_lib_get();
@@ -482,6 +465,26 @@ static void lib_manager_update_sof_ctx(struct sof_man_fw_desc *desc, uint32_t li
 
 	_ext_lib->desc[lib_id] = ctx;
 	/* TODO: maybe need to call dcache_writeback here? */
+}
+
+const struct sof_man_module *lib_manager_get_library_manifest(const uint32_t module_id)
+{
+	const uint32_t entry_index = LIB_MANAGER_GET_MODULE_INDEX(module_id);
+	const struct lib_manager_mod_ctx *const ctx = lib_manager_get_mod_ctx(module_id);
+	const struct sof_man_fw_desc *desc;
+
+	if (!ctx || !ctx->desc)
+		return NULL;
+
+	desc = (const struct sof_man_fw_desc *)((const char *)ctx->desc + SOF_MAN_ELF_TEXT_OFFSET);
+
+	if (entry_index >= desc->header.num_module_entries) {
+		tr_err(&lib_manager_tr, "Entry index %d out of bounds.", entry_index);
+		return NULL;
+	}
+
+	return (const struct sof_man_module *)((const char *)desc +
+					       SOF_MAN_MODULE_OFFSET(entry_index));
 }
 
 #if CONFIG_INTEL_MODULES
