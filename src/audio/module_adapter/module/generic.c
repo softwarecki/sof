@@ -105,6 +105,8 @@ int module_init(struct processing_module *mod, const struct module_interface *in
 		return -EIO;
 	}
 
+	((struct comp_driver *)drv)->adapter_ops = interface;
+
 	/* Init memory list */
 	list_init(&md->memory.mem_list);
 
