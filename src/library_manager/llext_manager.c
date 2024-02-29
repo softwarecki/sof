@@ -171,7 +171,7 @@ static int llext_manager_free_module_bss(uint32_t module_id,
 }
 
 uint32_t llext_manager_allocate_module(const struct comp_driver *drv,
-				       struct comp_ipc_config *ipc_config,
+				       const struct comp_ipc_config *ipc_config,
 				       const void *ipc_specific_config)
 {
 	struct sof_man_fw_desc *desc;

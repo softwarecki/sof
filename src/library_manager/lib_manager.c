@@ -343,7 +343,7 @@ static inline bool module_is_llext(const struct sof_man_module *mod)
 }
 
 uint32_t lib_manager_allocate_module(const struct comp_driver *drv,
-				     struct comp_ipc_config *ipc_config,
+				     const struct comp_ipc_config *ipc_config,
 				     const void *ipc_specific_config)
 {
 	struct sof_man_fw_desc *desc;
