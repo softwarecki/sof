@@ -160,14 +160,11 @@ uint32_t lib_manager_allocate_module(const struct comp_driver *drv,
 /*
  * \brief Free module
  *
- * param[in] drv - component driver
- * param[in] ipc_config - audio component base configuration from IPC at creation
- * param[in] ipc_specific_config - ipc4 base configuration
+ * param[in] component_id - component id
  *
  * Function is responsible to free module resources in HP memory.
  */
-int lib_manager_free_module(const struct comp_driver *drv,
-			    struct comp_ipc_config *ipc_config);
+int lib_manager_free_module(const uint32_t component_id);
 /*
  * \brief Load library
  *
