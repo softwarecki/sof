@@ -191,14 +191,13 @@ static int modules_process(struct processing_module *mod,
 static int modules_free(struct processing_module *mod)
 {
 	struct comp_dev *dev = mod->dev;
-	struct comp_ipc_config *config = &(mod->dev->ipc_config);
-	int ret = 0;
+	int ret;
 
 	comp_info(dev, "modules_free()");
 	ret = iadk_wrapper_free(module_get_private_data(mod));
 
 	/* Free module resources allocated in L2 memory. */
-	ret = lib_manager_free_module(dev->drv, config);
+	ret = lib_manager_free_module(dev->ipc_config.id);
 	if (ret < 0)
 		comp_err(dev, "modules_free(), lib_manager_free_module() failed!");
 
