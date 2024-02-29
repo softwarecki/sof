@@ -136,12 +136,12 @@ void lib_manager_init(void);
 /*
  * \brief Register module on driver list
  *
- * param[in] desc - module manifest descriptor
+ * param[in] component_id - component id
  *
  * Creates new comp_driver_info and initialize it for module from library
  * Adds new module to sof_get()->comp_drivers list
  */
-int lib_manager_register_module(const struct sof_man_module *const mod);
+int lib_manager_register_module(const uint32_t component_id);
 
 /*
  * \brief Get library module manifest descriptor

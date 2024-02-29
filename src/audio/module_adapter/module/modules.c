@@ -9,11 +9,8 @@
 #include <sof/audio/module_adapter/module/modules.h>
 #include <utilities/array.h>
 #include <system_agent.h>
-#include <native_system_agent.h>
-#include <api_version.h>
 #include <sof/lib_manager.h>
 #include <sof/audio/module_adapter/module/module_interface.h>
-#include <module/module/api_ver.h>
 
 /* Intel module adapter is an extension to SOF module adapter component that allows to integrate
  * modules developed under IADK (Intel Audio Development Kit) Framework. IADK modules uses uniform
@@ -60,18 +57,17 @@ static int modules_init(struct processing_module *mod)
 {
 	uint32_t module_entry_point;
 	struct module_data *md = &mod->priv;
-	struct comp_dev *dev = mod->dev;
-	struct comp_driver *drv = (struct comp_driver *)dev->drv;
+	const struct comp_dev *dev = mod->dev;
+	const struct comp_driver *const drv = dev->drv;
 	const struct ipc4_base_module_cfg *src_cfg = &md->cfg.base_cfg;
 	byte_array_t mod_cfg;
 	void *system_agent;
-	bool is_native_sof = false;
 
 	mod_cfg.data = (uint8_t *)md->cfg.init_data;
 	/* Intel modules expects DW size here */
 	mod_cfg.size = md->cfg.size >> 2;
 
-	struct comp_ipc_config *config = &(dev->ipc_config);
+	const struct comp_ipc_config *config = &dev->ipc_config;
 
 	/* At this point module resources are allocated and it is moved to L2 memory. */
 	module_entry_point = lib_manager_allocate_module(dev->drv, config, src_cfg);
@@ -79,72 +75,27 @@ static int modules_init(struct processing_module *mod)
 		comp_err(dev, "modules_init(), lib_manager_allocate_module() failed!");
 		return -EINVAL;
 	}
-
 	comp_info(dev, "modules_init() start");
 
-	uint32_t module_id = IPC4_MOD_ID(dev->ipc_config.id);
-	uint32_t instance_id = IPC4_INST_ID(dev->ipc_config.id);
-	uint32_t log_handle = (uint32_t) dev->drv->tctx;
-	/* Connect loadable module interfaces with module adapter entity. */
-	/* Check if native Zephyr lib is loaded */
+	const uint32_t module_id = IPC4_MOD_ID(dev->ipc_config.id);
+	const uint32_t instance_id = IPC4_INST_ID(dev->ipc_config.id);
+	const uint32_t log_handle = (const uint32_t)drv->tctx;
 
-	const struct sof_man_module *const module_entry =
-		lib_manager_get_module_manifest(module_id);
+	system_agent = system_agent_start(module_entry_point, module_id,
+					  instance_id, 0, log_handle,
+					  &mod_cfg);
 
-	if (!module_entry) {
-		comp_err(dev, "modules_init(): Failed to load manifest");
-		return -ENOMEM;
+	if (!system_agent) {
+		lib_manager_free_module(module_id);
+		comp_err(dev, "modules_init(), system_agent_start failed!");
+		return -EFAULT;
 	}
 
-	const struct sof_module_api_build_info *const mod_buildinfo =
-		(struct sof_module_api_build_info *)
-		(module_entry->segment[SOF_MAN_SEGMENT_TEXT].v_base_addr);
-
-	/* Check if module is FDK */
-	if (mod_buildinfo->format == IADK_MODULE_API_BUILD_INFO_FORMAT &&
-	    mod_buildinfo->api_version_number.full == IADK_MODULE_API_CURRENT_VERSION) {
-		system_agent = system_agent_start(module_entry_point, module_id,
-						  instance_id, 0, log_handle,
-						  &mod_cfg);
-
-		module_set_private_data(mod, system_agent);
-	} else
-	/* Check if module is native */
-	if (mod_buildinfo->format == SOF_MODULE_API_BUILD_INFO_FORMAT &&
-	    mod_buildinfo->api_version_number.full == SOF_MODULE_API_CURRENT_VERSION) {
-		/* If start agent for sof loadable */
-		is_native_sof = true;
-		drv->adapter_ops = native_system_agent_start(module_entry_point, module_id,
-							     instance_id, 0, log_handle, &mod_cfg);
-	} else
-		return -ENOEXEC;
-
+	module_set_private_data(mod, system_agent);
 	md->mpd.in_buff_size = src_cfg->ibs;
 	md->mpd.out_buff_size = src_cfg->obs;
 
-	int ret;
-
-	/* Call module specific init function if exists. */
-	if (is_native_sof) {
-		const struct module_interface *mod_in = drv->adapter_ops;
-
-		/* The order of preference */
-		if (mod_in->process)
-			mod->proc_type = MODULE_PROCESS_TYPE_SOURCE_SINK;
-		else if (mod_in->process_audio_stream)
-			mod->proc_type = MODULE_PROCESS_TYPE_STREAM;
-		else if (mod_in->process_raw_data)
-			mod->proc_type = MODULE_PROCESS_TYPE_RAW;
-		else
-			return -EINVAL;
-
-		ret = mod_in->init(mod);
-	} else {
-		mod->proc_type = MODULE_PROCESS_TYPE_SOURCE_SINK;
-		ret = iadk_wrapper_init(system_agent);
-	}
-
-	return ret;
+	return iadk_wrapper_init(system_agent);
 }
 
 /**
@@ -193,11 +144,13 @@ static int modules_free(struct processing_module *mod)
 
 	comp_info(dev, "modules_free()");
 	ret = iadk_wrapper_free(module_get_private_data(mod));
+	if (ret)
+		comp_err(dev, "modules_free(): iadk_wrapper_free failed with error: %d", ret);
 
 	/* Free module resources allocated in L2 memory. */
 	ret = lib_manager_free_module(dev->ipc_config.id);
 	if (ret < 0)
-		comp_err(dev, "modules_free(), lib_manager_free_module() failed!");
+		comp_err(dev, "modules_free(), lib_manager_free_module failed with error: %d", ret);
 
 	return ret;
 }
