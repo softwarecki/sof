@@ -114,8 +114,7 @@ static int modules_init(struct processing_module *mod)
 	    mod_buildinfo->api_version_number.full == SOF_MODULE_API_CURRENT_VERSION) {
 		/* If start agent for sof loadable */
 		is_native_sof = true;
-		drv->adapter_ops = native_system_agent_start(mod->sys_service,
-							     md->module_entry_point, module_id,
+		drv->adapter_ops = native_system_agent_start(md->module_entry_point, module_id,
 							     instance_id, 0, log_handle, &mod_cfg);
 	} else
 		return -ENOEXEC;
