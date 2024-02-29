@@ -79,7 +79,7 @@ static int modules_init(struct processing_module *mod)
 		comp_err(dev, "modules_init(), lib_manager_allocate_module() failed!");
 		return -EINVAL;
 	}
-	md->module_entry_point = module_entry_point;
+
 	comp_info(dev, "modules_init() start");
 
 	uint32_t module_id = IPC4_MOD_ID(dev->ipc_config.id);
@@ -114,7 +114,7 @@ static int modules_init(struct processing_module *mod)
 	    mod_buildinfo->api_version_number.full == SOF_MODULE_API_CURRENT_VERSION) {
 		/* If start agent for sof loadable */
 		is_native_sof = true;
-		drv->adapter_ops = native_system_agent_start(md->module_entry_point, module_id,
+		drv->adapter_ops = native_system_agent_start(module_entry_point, module_id,
 							     instance_id, 0, log_handle, &mod_cfg);
 	} else
 		return -ENOEXEC;
