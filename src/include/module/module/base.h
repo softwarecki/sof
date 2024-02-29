@@ -58,7 +58,6 @@ struct module_data {
 	void *runtime_params;
 	struct module_memory memory; /**< memory allocated by module */
 	struct module_processing_data mpd; /**< shared data comp <-> module */
-	uint32_t module_entry_point; /**<loadable module entry point address */
 #endif /* SOF_MODULE_PRIVATE */
 };
 
