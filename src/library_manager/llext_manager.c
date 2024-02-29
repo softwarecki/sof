@@ -68,8 +68,7 @@ static int llext_manager_load_data_from_storage(void __sparse_cache *vma, void *
 	return memcpy_s((__sparse_force void *)vma, size, s_addr, size);
 }
 
-static int llext_manager_load_module(uint32_t module_id, const struct sof_man_module *mod,
-				     struct sof_man_fw_desc *desc)
+static int llext_manager_load_module(uint32_t module_id, const struct sof_man_module *mod)
 {
 	struct lib_manager_mod_ctx *ctx = lib_manager_get_mod_ctx(module_id);
 	uint8_t *load_base = (uint8_t *)ctx->desc;
@@ -111,8 +110,7 @@ e_text:
 	return ret;
 }
 
-static int llext_manager_unload_module(uint32_t module_id, const struct sof_man_module *mod,
-				       struct sof_man_fw_desc *desc)
+static int llext_manager_unload_module(uint32_t module_id, const struct sof_man_module *mod)
 {
 	struct lib_manager_mod_ctx *ctx = lib_manager_get_mod_ctx(module_id);
 	void __sparse_cache *va_base_text = (void __sparse_cache *)
@@ -197,7 +195,7 @@ uint32_t llext_manager_allocate_module(const struct comp_driver *drv,
 	for (unsigned int i = 0; i < ARRAY_SIZE(ctx->segment_size); i++)
 		ctx->segment_size[i] = mod->segment[i].flags.r.length * PAGE_SZ;
 
-	ret = llext_manager_load_module(module_id, mod, desc);
+	ret = llext_manager_load_module(module_id, mod);
 	if (ret < 0)
 		return 0;
 
@@ -223,7 +221,7 @@ int llext_manager_free_module(const uint32_t component_id)
 	desc = lib_manager_get_library_module_desc(module_id);
 	mod = (struct sof_man_module *)((char *)desc + SOF_MAN_MODULE_OFFSET(entry_index));
 
-	ret = llext_manager_unload_module(module_id, mod, desc);
+	ret = llext_manager_unload_module(module_id, mod);
 	if (ret < 0)
 		return ret;
 
