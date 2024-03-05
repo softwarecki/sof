@@ -254,12 +254,12 @@ err:
 /* There are modules marked as lib_code. This is code shared between several modules inside
  * the library. Unload all lib_code modules with last none lib_code module unload.
  */
-static int lib_manager_unload_libcode_modules(const uint32_t module_id,
-					      const struct sof_man_fw_desc *const desc)
+static int lib_manager_unload_libcode_modules(const uint32_t module_id)
 {
-	struct ext_library *const ext_lib = ext_lib_get();
+	const struct sof_man_fw_desc *const desc = lib_manager_get_library_module_desc(module_id);
 	const struct sof_man_module *module_entry = (struct sof_man_module *)
 		((char *)desc + SOF_MAN_MODULE_OFFSET(0));
+	struct ext_library *const ext_lib = ext_lib_get();
 	int ret, idx;
 
 	if (--ext_lib->mods_exec_load_cnt > 0)
@@ -380,7 +380,7 @@ uint32_t lib_manager_allocate_module(const struct comp_driver *drv,
 		tr_err(&lib_manager_tr,
 		       "lib_manager_allocate_module(): module allocation failed: %d", ret);
 #ifdef CONFIG_LIBCODE_MODULE_SUPPORT
-		lib_manager_unload_libcode_modules(module_id, desc);
+		lib_manager_unload_libcode_modules(module_id);
 #endif /* CONFIG_LIBCODE_MODULE_SUPPORT */
 		goto err;
 	}
@@ -409,7 +409,7 @@ int lib_manager_free_module(const uint32_t component_id)
 		return ret;
 
 #ifdef CONFIG_LIBCODE_MODULE_SUPPORT
-	ret = lib_manager_unload_libcode_modules(module_id, desc);
+	ret = lib_manager_unload_libcode_modules(module_id);
 	if (ret < 0)
 		return ret;
 #endif /* CONFIG_LIBCODE_MODULE_SUPPORT */
