@@ -216,9 +216,9 @@ static int lib_manager_unload_module(const struct sof_man_module *const mod)
 /* There are modules marked as lib_code. This is code shared between several modules inside
  * the library. Load all lib_code modules with first none lib_code module load.
  */
-static int lib_manager_load_libcode_modules(const uint32_t module_id,
-					    const struct sof_man_fw_desc *const desc)
+static int lib_manager_load_libcode_modules(const uint32_t module_id)
 {
+	const struct sof_man_fw_desc *const desc = lib_manager_get_library_module_desc(module_id);
 	struct ext_library *const ext_lib = ext_lib_get();
 	const struct sof_man_module *module_entry = (struct sof_man_module *)
 		((char *)desc + SOF_MAN_MODULE_OFFSET(0));
@@ -369,7 +369,7 @@ uint32_t lib_manager_allocate_module(const struct comp_driver *drv,
 		return 0;
 
 #ifdef CONFIG_LIBCODE_MODULE_SUPPORT
-	ret = lib_manager_load_libcode_modules(module_id, desc);
+	ret = lib_manager_load_libcode_modules(module_id);
 	if (ret < 0)
 		goto err;
 #endif /* CONFIG_LIBCODE_MODULE_SUPPORT */
