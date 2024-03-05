@@ -567,22 +567,22 @@ static void lib_manager_module_free(struct comp_dev *dev)
 
 int lib_manager_register_module(const uint32_t component_id)
 {
-	const struct lib_manager_mod_ctx *const ctx = lib_manager_get_mod_ctx(component_id);
+	const struct sof_man_fw_desc *const desc = lib_manager_get_library_module_desc(component_id);
 	const uint32_t entry_index = LIB_MANAGER_GET_MODULE_INDEX(component_id);
 	const struct sof_module_api_build_info *build_info;
 	struct comp_driver_info *new_drv_info;
-	const struct sof_man_fw_desc *desc;
 	const struct sof_man_module *mod;
 	struct comp_driver *drv = NULL;
 	int ret;
 
-	/* Get library manifest based on component_id */
-	if (!ctx || !ctx->desc)
+	if (!desc) {
+		tr_err(&lib_manager_tr, "Error: Couldn't find loadable module with id %u.",
+		       component_id);
 		return -ENOENT;
+	}
 
-	desc = (const struct sof_man_fw_desc *)((const char *)ctx->desc + SOF_MAN_ELF_TEXT_OFFSET);
 	if (entry_index >= desc->header.num_module_entries) {
-		tr_err(&lib_manager_tr, "Entry index %d out of bounds.", entry_index);
+		tr_err(&lib_manager_tr, "Entry index %u out of bounds.", entry_index);
 		return -ENOENT;
 	}
 
