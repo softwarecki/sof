@@ -264,6 +264,7 @@ static const struct vmh_heap_config static_hp_buffers = {
 		{ 8192, 13},
 		{ 65536, 3},
 		{ 131072, 1},
+		{ 524288, 1} /* buffer for kpb */
 	},
 };
 
@@ -271,6 +272,10 @@ static int virtual_heap_init(void)
 {
 	virtual_buffers_heap = vmh_init_heap(&static_hp_buffers, MEM_REG_ATTR_SHARED_HEAP, 0,
 					     false);
+
+	if (!virtual_buffers_heap)
+		tr_err(&zephyr_tr, "Unable to init virtual buffers heap!");
+
 	return 0;
 }
 
@@ -487,14 +492,8 @@ void *rballoc_align(uint32_t flags, uint32_t caps, size_t bytes,
 
 #if CONFIG_VIRTUAL_HEAP
 	/* Use virtual heap if it is available */
-	if (virtual_buffers_heap) {
-		void* ptr = virtual_heap_alloc(virtual_buffers_heap, flags, caps, bytes, align);
-
-		if (!ptr)
-			tr_err(&zephyr_tr, "virtual heap returned NULL!!!");
-
-		return ptr;
-	}
+	if (virtual_buffers_heap)
+		return virtual_heap_alloc(virtual_buffers_heap, flags, caps, bytes, align);
 #endif /* CONFIG_VIRTUAL_HEAP */
 
 	if (flags & SOF_MEM_FLAG_COHERENT)
