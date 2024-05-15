@@ -334,6 +334,11 @@ static int vmh_unmap_region(struct sys_mem_blocks *region, void *ptr, size_t siz
 	return 0;
 }
 
+LOG_MODULE_REGISTER(regions_mm, CONFIG_SOF_LOG_LEVEL);
+
+extern struct tr_ctx zephyr_tr;
+#define DEBUG() tr_err(&zephyr_tr, "%d", __LINE__)
+
 /**
  * @brief Alloc function
  *
@@ -448,19 +453,23 @@ void *vmh_alloc(struct vmh_heap *heap, uint32_t alloc_size)
 					block_count - 1, allocation_bitarray_position);
 			break;
 		}
+		//DEBUG();
 	}
 
 	/* If ptr is NULL it means we did not allocate anything and we should
 	 * break execution here
 	 */
-	if (!ptr)
+	if (!ptr) {
+		//DEBUG();
 		return NULL;
+	}
 
 	allocation_error_code = vmh_map_region(heap->physical_blocks_allocators[mem_block_iterator],
 					       ptr, alloc_size);
 	if (allocation_error_code) {
 		sys_mem_blocks_free_contiguous(heap->physical_blocks_allocators[mem_block_iterator],
 					       ptr, block_count);
+		DEBUG();
 		return NULL;
 	}
 
