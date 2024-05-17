@@ -875,10 +875,12 @@ static int dai_set_dma_buffer(struct dai_data *dd, struct comp_dev *dev,
 		return -EINVAL;
 	}
 	buffer_size = ALIGN_UP(period_count * period_bytes, align);
+	comp_err(dev, "period_bytes %u, buffer_size %u, period_count %u", period_bytes, buffer_size, period_count);
+
 	period_count = MAX(period_count,
 			   SOF_DIV_ROUND_UP(dd->ipc_config.dma_buffer_size, period_bytes));
-	*pc = period_count;
 	buffer_size_preffered = ALIGN_UP(period_count * period_bytes, align);
+	comp_err(dev, "buffer_size_preffered %u, period_count %u", buffer_size_preffered, period_count);
 
 	/* alloc DMA buffer or change its size if exists */
 	if (dd->dma_buffer) {
@@ -909,6 +911,8 @@ static int dai_set_dma_buffer(struct dai_data *dd, struct comp_dev *dev,
 	}
 
 	*pc = audio_stream_get_size(&dd->dma_buffer->stream) / period_bytes;
+	comp_err(dev, "buffer_size %u, period_count %u", audio_stream_get_size(&dd->dma_buffer->stream), *pc);
+
 	dd->fast_mode = dd->ipc_config.feature_mask & BIT(IPC4_COPIER_FAST_MODE);
 	return 0;
 }
