@@ -869,8 +869,7 @@ int host_common_params(struct host_data *hd, struct comp_dev *dev,
 	buffer_size = audio_stream_get_size(&hd->dma_buffer->stream);
 
 	/* create SG DMA elems for local DMA buffer */
-	err = create_local_elems(hd, dev, period_count, buffer_size / period_count,
-				 params->direction);
+	err = create_local_elems(hd, dev, period_count, period_bytes, params->direction);
 	if (err < 0)
 		return err;
 
