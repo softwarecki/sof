@@ -828,6 +828,10 @@ int host_common_params(struct host_data *hd, struct comp_dev *dev,
 	if (hd->ipc_host.dma_buffer_size != 0)
 		buffer_size_preferred = ROUND_UP(hd->ipc_host.dma_buffer_size, buffer_size);
 
+	comp_err(dev, "%c round_up_size %u, period_count %u, period_bytes %u, buffer_size %u, buffer_size_preffered %u",
+		 params->direction == SOF_IPC_STREAM_PLAYBACK ? 'p' :'c',
+		 round_up_size, period_count, period_bytes, buffer_size, buffer_size_preffered);
+
 	/* alloc DMA buffer or change its size if exists */
 	/*
 	 * Host DMA buffer cannot be shared. So we actually don't need to lock,
