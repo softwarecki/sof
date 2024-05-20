@@ -402,12 +402,20 @@ static uint32_t host_get_copy_bytes_normal(struct host_data *hd, struct comp_dev
 	 * in order to avoid high load spike
 	 * if FAST_MODE is enabled, then one period limitation is omitted
 	 */
+	/*
+	comp_err(dev, "%c %u %u",
+		 (hd->ipc_host.feature_mask & BIT(IPC4_COPIER_FAST_MODE)) ? 'F' : 'n',
+		 hd->period_bytes, dma_copy_bytes);
+	*/
+
 	if (!(hd->ipc_host.feature_mask & BIT(IPC4_COPIER_FAST_MODE)))
 		dma_copy_bytes = MIN(hd->period_bytes, dma_copy_bytes);
 
+/*
 	if (!dma_copy_bytes)
-		comp_info(dev, "no bytes to copy, available samples: %d, free_samples: %d",
+		comp_info(dev, "%c no copy, available %d, free : %d",(dev->direction == SOF_IPC_STREAM_PLAYBACK) ? 'p' : 'c',
 			  avail_samples, free_samples);
+*/
 
 	/* dma_copy_bytes should be aligned to minimum possible chunk of
 	 * data to be copied by dma.
@@ -819,6 +827,8 @@ int host_common_params(struct host_data *hd, struct comp_dev *dev,
 		period_count = 1;
 	}
 
+	comp_err(dev, "period_count %u, elem_array.count %u, mask %u", period_count, hd->host.elem_array.count, hd->ipc_host.feature_mask);
+
 	/* calculate DMA buffer size */
 	round_up_size = (params->frame_fmt == SOF_IPC_FRAME_S24_3LE) ? (3 * align) : align;
 	buffer_size = ROUND_UP(period_bytes, round_up_size) * period_count;
@@ -864,7 +874,10 @@ int host_common_params(struct host_data *hd, struct comp_dev *dev,
 		config->dest_width = config->src_width;
 		hd->dma_buffer_size = audio_stream_get_size(&hd->dma_buffer->stream);
 	}
-	buffer_size = hd->dma_buffer->stream.size;
+	buffer_size = audio_stream_get_size(&hd->dma_buffer->stream);// hd->dma_buffer->stream.size;
+	comp_err(dev, "buffer_size %u, hd->dma_buffer_size %u; %p", buffer_size, hd->dma_buffer_size,
+		 (void*)audio_stream_get_addr(&hd->dma_buffer->stream));
+
 
 	/* create SG DMA elems for local DMA buffer */
 	err = create_local_elems(hd, dev, period_count, buffer_size / period_count,
