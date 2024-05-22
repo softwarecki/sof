@@ -73,7 +73,7 @@ struct comp_buffer *buffer_alloc(uint32_t size, uint32_t caps, uint32_t flags, u
 	struct comp_buffer *buffer;
 	void *stream_addr;
 
-	tr_dbg(&buffer_tr, "buffer_alloc()");
+	tr_err(&buffer_tr, "buffer_alloc() %d", sizeof(size_t));
 
 	/* validate request */
 	if (size == 0) {
