@@ -243,6 +243,7 @@ static void virtual_heap_free(void *ptr)
 	ptr = (__sparse_force void *)sys_cache_cached_ptr_get(ptr);
 
 	K_SPINLOCK(&vmh_lock) {
+		virtual_buffers_heap->core_id = cpu_get_id();
 		ret = vmh_free(virtual_buffers_heap, ptr);
 	}
 
