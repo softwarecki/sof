@@ -32,6 +32,7 @@
 #include <sof/compiler_attributes.h>
 #include <sof/audio/buffer.h>
 #include <sof/audio/pcm_converter.h>
+#include <sof/lib/glitch.h>
 
 static const uint32_t INVALID_QUEUE_ID = 0xFFFFFFFF;
 

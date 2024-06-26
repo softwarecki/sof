@@ -23,6 +23,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/sys_clock.h>
+#include <sof/lib/glitch.h>
 
 LOG_MODULE_DECLARE(ll_schedule, CONFIG_SOF_LOG_LEVEL);
 
@@ -93,7 +94,9 @@ static void zephyr_domain_thread_fn(void *p1, void *p2, void *p3)
 #endif
 
 		cycles0 = k_cycle_get_32();
+		glitcher_ll_begin();
 		dt->handler(dt->arg);
+		glitcher_ll_end();
 		cycles1 = k_cycle_get_32();
 
 		/* This handles wrapping correctly too */

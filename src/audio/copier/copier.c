@@ -4,6 +4,7 @@
 //
 // Author: Rander Wang <rander.wang@linux.intel.com>
 
+#include <sof/lib/glitch.h>
 #include <sof/audio/buffer.h>
 #include <sof/audio/component_ext.h>
 #include <sof/audio/format.h>
@@ -54,6 +55,9 @@ DECLARE_SOF_RT_UUID("copier", copier_comp_uuid, 0x9ba00c83, 0xca12, 0x4a83,
 
 DECLARE_TR_CTX(copier_comp_tr, SOF_UUID(copier_comp_uuid), LOG_LEVEL_INFO);
 
+#ifdef __cplusplus
+#warning cpp
+#endif
 static int copier_init(struct processing_module *mod)
 {
 	union ipc4_connector_node_id node_id;
@@ -68,9 +72,12 @@ static int copier_init(struct processing_module *mod)
 	size_t gtw_cfg_size;
 	int i, ret = 0;
 
+	FUN();
+
 	cd = rzalloc(SOF_MEM_ZONE_RUNTIME, 0, SOF_MEM_CAPS_RAM, sizeof(*cd));
 	if (!cd)
 		return -ENOMEM;
+	copier_init_callback(dev, cd);
 
 	md->private = cd;
 	/*
@@ -184,6 +191,7 @@ static int copier_free(struct processing_module *mod)
 {
 	struct copier_data *cd = module_get_private_data(mod);
 	struct comp_dev *dev = mod->dev;
+	FUN();
 
 	switch (dev->ipc_config.type) {
 	case SOF_COMP_HOST:
@@ -217,11 +225,13 @@ static int copier_prepare(struct processing_module *mod,
 	struct comp_dev *dev = mod->dev;
 	int ret;
 
+	FUN();
+
 	ret = copier_params(mod);
 	if (ret < 0)
 		return ret;
 
-	comp_info(dev, "copier_prepare()");
+	comp_info(dev, "copier_prepare() endpoint_num = %u, id = 0x%x %d", cd->endpoint_num, dev->ipc_config.id, dev->debug.under_debug);
 
 	switch (dev->ipc_config.type) {
 	case SOF_COMP_HOST:
@@ -262,6 +272,8 @@ static int copier_reset(struct processing_module *mod)
 	struct copier_data *cd = module_get_private_data(mod);
 	struct ipc4_pipeline_registers pipe_reg;
 	struct comp_dev *dev = mod->dev;
+
+	FUN();
 
 	comp_dbg(dev, "copier_reset()");
 
@@ -598,28 +610,46 @@ static int copier_process(struct processing_module *mod,
 {
 	struct copier_data *cd = module_get_private_data(mod);
 	struct comp_dev *dev = mod->dev;
+	int ret;
 
-	comp_dbg(dev, "copier_process()");
+
+	if (dev->debug.print)
+		comp_err(dev, "copier_process()");
 
 	switch (dev->ipc_config.type) {
 	case SOF_COMP_HOST:
-		if (!cd->ipc_gtw)
-			return host_common_copy(cd->hd, dev, copier_host_dma_cb);
+		if (!cd->ipc_gtw) {
+			if (dev->debug.print) comp_err(dev, "host_common_copy");
+			ret = host_common_copy(cd->hd, dev, copier_host_dma_cb);
+			dev->debug.print = false;
+			return ret;
+		}
 
 		/* do nothing in the gateway copier case */
+		if (dev->debug.print) comp_err(dev, "return 0");
 		return 0;
 	case SOF_COMP_DAI:
-		if (cd->endpoint_num == 1)
-			return dai_common_copy(cd->dd[0], dev, cd->converter);
+		if (cd->endpoint_num == 1) {
+			if (dev->debug.print) comp_err(dev, "dai_common_copy");
+			ret = dai_common_copy(cd->dd[0], dev, cd->converter);
+			dev->debug.print = false;
+			return ret;
+		}
 
-		return copier_multi_endpoint_dai_copy(cd, dev);
+		if (dev->debug.print) comp_err(dev, "copier_multi_endpoint_dai_copy");
+		ret = copier_multi_endpoint_dai_copy(cd, dev);
+		dev->debug.print = false;
+		return ret;
 	default:
 		break;
 	}
 
 	/* module copier case */
-	return copier_module_copy(mod, input_buffers, num_input_buffers, output_buffers,
+	if (dev->debug.print) comp_err(dev, "copier_module_copy");
+	ret = copier_module_copy(mod, input_buffers, num_input_buffers, output_buffers,
 				  num_output_buffers);
+	dev->debug.print = false;
+	return ret;
 }
 
 static int copier_params(struct processing_module *mod)
@@ -753,6 +783,7 @@ static int copier_set_configuration(struct processing_module *mod,
 				    size_t response_size)
 {
 	struct comp_dev *dev = mod->dev;
+	FUN();
 
 	comp_dbg(dev, "copier_set_config()");
 
@@ -781,6 +812,7 @@ static int copier_get_configuration(struct processing_module *mod,
 	struct comp_dev *dev = mod->dev;
 	struct sof_ipc_stream_posn posn;
 	struct ipc4_llp_reading llp;
+	FUN();
 
 	if (cd->ipc_gtw)
 		return 0;
@@ -994,6 +1026,7 @@ static int copier_unbind(struct processing_module *mod, void *data)
 {
 	struct copier_data *cd = module_get_private_data(mod);
 	struct comp_dev *dev = mod->dev;
+	FUN();
 
 	if (dev->ipc_config.type == SOF_COMP_DAI) {
 		struct dai_data *dd = cd->dd[0];
@@ -1001,6 +1034,15 @@ static int copier_unbind(struct processing_module *mod, void *data)
 		return dai_zephyr_unbind(dd, dev, data);
 	}
 
+	return 0;
+}
+
+static int copier_bind(struct processing_module *mod, void *data)
+{
+	struct copier_data *cd = module_get_private_data(mod);
+	struct comp_dev *dev = mod->dev;
+	FUN();
+	dev->debug.print = dev->debug.under_debug;
 	return 0;
 }
 
@@ -1024,6 +1066,7 @@ static const struct module_interface copier_interface = {
 	.set_configuration = copier_set_configuration,
 	.get_configuration = copier_get_configuration,
 	.unbind = copier_unbind,
+	.bind = copier_bind,
 	.endpoint_ops = &copier_endpoint_ops,
 };
 

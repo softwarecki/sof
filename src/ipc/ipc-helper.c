@@ -50,9 +50,6 @@ struct comp_buffer *buffer_new(const struct sof_ipc_buffer *desc, bool is_shared
 {
 	struct comp_buffer *buffer;
 
-	tr_info(&buffer_tr, "buffer new size 0x%x id %d.%d flags 0x%x",
-		desc->size, desc->comp.pipeline_id, desc->comp.id, desc->flags);
-
 	if (!valid_ipc_buffer_desc(desc)) {
 		tr_err(&buffer_tr, "Invalid buffer desc! New size 0x%x id %d.%d caps 0x%x",
 		       desc->size, desc->comp.pipeline_id, desc->comp.id, desc->caps);
@@ -63,6 +60,8 @@ struct comp_buffer *buffer_new(const struct sof_ipc_buffer *desc, bool is_shared
 	buffer = buffer_alloc(desc->size, desc->caps, desc->flags, PLATFORM_DCACHE_ALIGN,
 			      is_shared);
 	if (buffer) {
+		tr_info(&buffer_tr, "new buffer %p: size 0x%x id %d.%d flags 0x%x", (void *)buffer,
+			desc->size, desc->comp.pipeline_id, desc->comp.id, desc->flags);
 		buffer->stream.runtime_stream_params.id = desc->comp.id;
 		buffer->stream.runtime_stream_params.pipeline_id = desc->comp.pipeline_id;
 		buffer->core = desc->comp.core;
@@ -122,6 +121,7 @@ int comp_verify_params(struct comp_dev *dev, uint32_t flag,
 	struct comp_buffer *buf;
 	int dir = dev->direction;
 
+	comp_err(dev, "comp_verify_params()");
 	if (!params) {
 		comp_err(dev, "comp_verify_params(): !params");
 		return -EINVAL;

@@ -106,6 +106,12 @@ struct llp_slot_info {
 	uint32_t reg_offset;
 };
 
+struct dai_debug {
+	bool under_debug;
+	bool print;
+};
+struct copier_debug;
+
 /**
  * \brief DAI runtime data
  */

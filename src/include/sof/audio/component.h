@@ -25,7 +25,7 @@
 #include <ipc/control.h>
 #include <sof/ipc/topology.h>
 #include <kernel/abi.h>
-
+#include <sof/lib/glitch.h>
 #include <limits.h>
 
 struct comp_dev;
@@ -559,7 +559,7 @@ struct comp_ipc_config {
  * - used by other component types.
  */
 struct comp_dev {
-
+	struct debug_data	debug;
 	/* runtime */
 	uint16_t state;		   /**< COMP_STATE_ */
 	uint32_t frames;	   /**< number of frames we copy to sink */

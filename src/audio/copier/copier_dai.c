@@ -200,6 +200,7 @@ static int copier_dai_init(struct comp_dev *dev,
 	dd = rzalloc(SOF_MEM_ZONE_RUNTIME_SHARED, 0, SOF_MEM_CAPS_RAM, sizeof(*dd));
 	if (!dd)
 		return -ENOMEM;
+	copier_dai_init_callback(dev, cd, dd);
 
 	ret = dai_common_new(dd, dev, dai);
 	if (ret < 0)

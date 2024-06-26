@@ -21,6 +21,8 @@ LOG_MODULE_DECLARE(copier, CONFIG_SOF_LOG_LEVEL);
 #include <errno.h>
 #include <stdint.h>
 
+//#define FUN() if (dev->ipc_config.id == 0x20004) { comp_err(dev, "%s() !!!", __FUNCTION__); }
+
 int apply_attenuation(struct comp_dev *dev, struct copier_data *cd,
 		      struct comp_buffer *sink, int frame)
 {
@@ -136,6 +138,8 @@ int create_endpoint_buffer(struct comp_dev *dev,
 	uint32_t buf_size;
 	uint32_t chan_map;
 	int i;
+
+	//FUN();
 
 	audio_stream_fmt_conversion(copier_cfg->base.audio_fmt.depth,
 				    copier_cfg->base.audio_fmt.valid_bit_depth,

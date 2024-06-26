@@ -424,6 +424,7 @@ zephyr_library_sources(
 	${SOF_MATH_PATH}/exp_fcn_hifi.c
 
 	# SOF library - parts to transition to Zephyr over time
+	${SOF_LIB_PATH}/glitch.c
 	${SOF_LIB_PATH}/clk.c
 	${SOF_LIB_PATH}/notifier.c
 	${SOF_LIB_PATH}/pm_runtime.c

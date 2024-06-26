@@ -22,6 +22,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/*
 #if defined(__XCC__)
 #include <xtensa/config/core-isa.h>
 # if XCHAL_HAVE_HIFI5
@@ -30,6 +31,7 @@
 #  define STREAMCOPY_HIFI3
 #endif
 #endif
+*/
 
 LOG_MODULE_REGISTER(component, CONFIG_SOF_LOG_LEVEL);
 
@@ -494,8 +496,9 @@ int comp_copy(struct comp_dev *dev)
 #if CONFIG_PERFORMANCE_COUNTERS
 		perf_cnt_init(&dev->pcd);
 #endif
-
+		debug_comp_copy_pre(dev);
 		ret = dev->drv->ops.copy(dev);
+		debug_comp_copy_post(dev, ret);
 
 #if CONFIG_PERFORMANCE_COUNTERS
 		perf_cnt_stamp(&dev->pcd, perf_trace_null, dev);

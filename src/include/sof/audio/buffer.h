@@ -26,6 +26,7 @@
 #include <ipc/topology.h>
 #include <user/trace.h>
 #include <sof/audio/format.h>
+#include <sof/lib/glitch.h>
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -154,6 +155,9 @@ struct comp_buffer {
 
 	bool hw_params_configured; /**< indicates whether hw params were set */
 	bool walking;		/**< indicates if the buffer is being walked */
+
+	/* debug */
+	struct debug_buffer debug;
 };
 
 /* Only to be used for synchronous same-core notifications! */

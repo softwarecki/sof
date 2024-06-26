@@ -250,7 +250,7 @@ static void print_version_banner(void)
 	 * SOF_SRC_HASH in case of mismatch.
 	 */
 #ifdef CONFIG_ZEPHYR_LOG
-	LOG_INF("FW ABI 0x%x DBG ABI 0x%x tags SOF:" SOF_GIT_TAG " zephyr:" \
+	LOG_INF("DZIAB FW ABI 0x%x DBG ABI 0x%x tags SOF:" SOF_GIT_TAG " zephyr:" \
 		STRINGIFY(BUILD_VERSION) " src hash 0x%08x (ref hash " \
 		STRINGIFY(SOF_SRC_HASH) ")",
 		SOF_ABI_VERSION, SOF_ABI_DBG_VERSION, SOF_SRC_HASH);
