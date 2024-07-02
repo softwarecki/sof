@@ -154,6 +154,7 @@ static int ipc4_comp_params(struct comp_dev *current,
 {
 	struct pipeline_data *ppl_data = ctx->comp_data;
 	int err;
+	tr_err(&ipc_tr, ":)");
 
 	/* don't do any params if current is running */
 	if (current->state == COMP_STATE_ACTIVE)
@@ -191,6 +192,7 @@ static int ipc4_pipeline_params(struct pipeline *p, struct comp_dev *host)
 static int ipc4_pcm_params(struct ipc_comp_dev *pcm_dev)
 {
 	int err, reset_err;
+	ipc_cmd_err(&ipc_tr, "ipc: comp %d pipeline", pcm_dev->id);
 
 	/* sanity check comp */
 	if (!pcm_dev->cd->pipeline) {
@@ -322,7 +324,7 @@ int ipc4_pipeline_prepare(struct ipc_comp_dev *ppl_icd, uint32_t cmd)
 	int ret = 0;
 
 	status = ppl_icd->pipeline->status;
-	tr_dbg(&ipc_tr, "pipeline %d: initial state: %d, cmd: %d", ppl_icd->id,
+	tr_err(&ipc_tr, "pipeline %d: initial state: %d, cmd: %d", ppl_icd->id,
 	       status, cmd);
 
 	switch (cmd) {

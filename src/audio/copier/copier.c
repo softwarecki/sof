@@ -660,6 +660,7 @@ static int copier_params(struct processing_module *mod)
 	int i, ret = 0;
 
 	comp_dbg(dev, "copier_params()");
+	FUN();
 
 	copier_update_params(cd, dev, params);
 

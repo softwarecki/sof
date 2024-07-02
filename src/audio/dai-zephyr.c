@@ -817,6 +817,8 @@ static int dai_set_dma_buffer(struct dai_data *dd, struct comp_dev *dev,
 	uint32_t align;
 	int err;
 
+	comp_info(dev, "dai_set_dma_buffer()");
+
 
 	if (dev->direction == SOF_IPC_STREAM_PLAYBACK)
 		dd->local_buffer = list_first_item(&dev->bsource_list, struct comp_buffer,

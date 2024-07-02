@@ -139,7 +139,7 @@ int create_endpoint_buffer(struct comp_dev *dev,
 	uint32_t chan_map;
 	int i;
 
-	//FUN();
+	FUN();
 
 	audio_stream_fmt_conversion(copier_cfg->base.audio_fmt.depth,
 				    copier_cfg->base.audio_fmt.valid_bit_depth,

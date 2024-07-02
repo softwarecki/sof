@@ -203,6 +203,7 @@ int buffer_set_params(struct comp_buffer *buffer,
 {
 	int ret;
 	int i;
+	buf_err(buffer, "%p params!!!", (void *)buffer);
 
 	CORE_CHECK_STRUCT(buffer);
 
@@ -263,7 +264,7 @@ void buffer_free(struct comp_buffer *buffer)
 	if (!buffer)
 		return;
 
-	buf_dbg(buffer, "buffer_free()");
+	buf_info(buffer, "buffer_free() %p", (void *)buffer);
 
 	notifier_event(buffer, NOTIFIER_ID_BUFFER_FREE,
 		       NOTIFIER_TARGET_CORE_LOCAL, &cb_data, sizeof(cb_data));

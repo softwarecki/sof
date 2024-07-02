@@ -32,7 +32,7 @@ static int pipeline_comp_params_neg(struct comp_dev *current,
 	struct pipeline_data *ppl_data = ctx->comp_data;
 	int err = 0;
 
-	pipe_dbg(current->pipeline, "pipeline_comp_params_neg(), current->comp.id = 0x%x, dir = %u",
+	pipe_err(current->pipeline, "pipeline_comp_params_neg(), current->comp.id = 0x%x, dir = %u",
 		 dev_comp_id(current), dir);
 
 	/* check if 'current' is already configured */
@@ -161,6 +161,8 @@ static int pipeline_comp_hw_params_buf(struct comp_dev *current,
 {
 	struct pipeline_data *ppl_data = ctx->comp_data;
 	int ret;
+
+	pipe_err(current->pipeline, "pipeline_comp_hw_params()");
 
 	ret = pipeline_for_each_comp(current, ctx, dir);
 	if (ret < 0)

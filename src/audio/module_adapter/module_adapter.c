@@ -367,6 +367,9 @@ int module_adapter_prepare(struct comp_dev *dev)
 		i++;
 	}
 
+	comp_err(dev, "module_adapter_prepare(): allocate local buffer");
+
+
 	/* allocate buffer for all sinks */
 	if (list_is_empty(&mod->sink_buffer_list)) {
 		for (i = 0; i < mod->num_of_sinks; i++) {

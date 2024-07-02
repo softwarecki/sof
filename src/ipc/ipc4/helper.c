@@ -1147,6 +1147,8 @@ void ipc4_update_buffer_format(struct comp_buffer *buf_c,
 	enum sof_ipc_frame valid_fmt, frame_fmt;
 	int i;
 
+	tr_err(&ipc_tr, "%p params!!!", (void *)buf_c);
+
 	audio_stream_set_channels(&buf_c->stream, fmt->channels_count);
 	audio_stream_set_rate(&buf_c->stream, fmt->sampling_frequency);
 	audio_stream_fmt_conversion(fmt->depth,
