@@ -557,7 +557,7 @@ const struct ipc4_pipeline_set_state_data *ipc4_get_pipeline_data_wrapper(void)
 
 	return ppl_data;
 }
-
+void alloc_history_print();
 static int ipc4_set_pipeline_state(struct ipc4_message_request *ipc4)
 {
 	const struct ipc4_pipeline_set_state_data *ppl_data;
@@ -682,7 +682,6 @@ static int ipc4_set_pipeline_state(struct ipc4_message_request *ipc4)
 		if (ret != 0)
 			return ret;
 	}
-
 	return ret;
 }
 
@@ -824,6 +823,7 @@ static int ipc4_process_glb_message(struct ipc4_message_request *ipc4)
 		break;
 	case SOF_IPC4_GLB_DELETE_PIPELINE:
 		ret = ipc4_delete_pipeline(ipc4);
+		alloc_history_print();
 		break;
 	case SOF_IPC4_GLB_SET_PIPELINE_STATE:
 		ret = ipc4_set_pipeline_state(ipc4);
