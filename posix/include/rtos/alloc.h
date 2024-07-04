@@ -102,14 +102,14 @@ void *rzalloc(enum mem_zone zone, uint32_t flags, uint32_t caps, size_t bytes);
  * @return Pointer to the allocated memory or NULL if failed.
  */
 void *rballoc_align(uint32_t flags, uint32_t caps, size_t bytes,
-		    uint32_t alignment);
+		    uint32_t alignment, const char* user);
 
 /**
  * Similar to rballoc_align(), returns buffer aligned to PLATFORM_DCACHE_ALIGN.
  */
-static inline void *rballoc(uint32_t flags, uint32_t caps, size_t bytes)
+static inline void *rballoc(uint32_t flags, uint32_t caps, size_t bytes, const char* user)
 {
-	return rballoc_align(flags, caps, bytes, PLATFORM_DCACHE_ALIGN);
+	return rballoc_align(flags, caps, bytes, PLATFORM_DCACHE_ALIGN, user);
 }
 
 /**
@@ -123,17 +123,17 @@ static inline void *rballoc(uint32_t flags, uint32_t caps, size_t bytes)
  * @return Pointer to the resized memory of NULL if failed.
  */
 void *rbrealloc_align(void *ptr, uint32_t flags, uint32_t caps, size_t bytes,
-		      size_t old_bytes, uint32_t alignment);
+		      size_t old_bytes, uint32_t alignment, const char* user);
 
 /**
  * Similar to rballoc_align(), returns resized buffer aligned to
  * PLATFORM_DCACHE_ALIGN.
  */
 static inline void *rbrealloc(void *ptr, uint32_t flags, uint32_t caps,
-			      size_t bytes, size_t old_bytes)
+			      size_t bytes, size_t old_bytes, const char* user)
 {
 	return rbrealloc_align(ptr, flags, caps, bytes, old_bytes,
-			       PLATFORM_DCACHE_ALIGN);
+			       PLATFORM_DCACHE_ALIGN, user);
 }
 
 /**

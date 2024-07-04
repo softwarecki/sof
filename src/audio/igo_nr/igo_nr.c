@@ -440,7 +440,7 @@ static int igo_nr_init(struct processing_module *mod)
 		goto cd_fail;
 	}
 
-	cd->p_handle = rballoc(0, SOF_MEM_CAPS_RAM, cd->igo_lib_info.handle_size);
+	cd->p_handle = rballoc(0, SOF_MEM_CAPS_RAM, cd->igo_lib_info.handle_size, __FUNCTION__);
 	if (!cd->p_handle) {
 		comp_err(dev, "igo_nr_init(): igo_handle memory rballoc error for size %d",
 			 cd->igo_lib_info.handle_size);

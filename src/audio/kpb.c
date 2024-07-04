@@ -573,7 +573,7 @@ static size_t kpb_allocate_history_buffer(struct comp_data *kpb,
 		/* Try to allocate ca_size (current allocation size). At first
 		 * attempt it will be equal to hb_size (history buffer size).
 		 */
-		new_mem_block = rballoc(0, hb_mcp[i], ca_size);
+		new_mem_block = rballoc(0, hb_mcp[i], ca_size, __FUNCTION__);
 
 		if (new_mem_block) {
 			/* We managed to allocate a block of ca_size.

@@ -127,7 +127,7 @@ static int basefw_mem_state_info(uint32_t *data_offset, char *data)
 		info.page_alloc_struct.page_alloc_count * sizeof(uint32_t);
 	size = ALIGN(size, 4);
 	/* size is also saved as tuple length */
-	tuple_data = rballoc(0, SOF_MEM_CAPS_RAM, size);
+	tuple_data = rballoc(0, SOF_MEM_CAPS_RAM, size, __FUNCTION__);
 
 	/* save memory info in data array since info length is variable */
 	index = 0;

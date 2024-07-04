@@ -622,7 +622,7 @@ EXPORT_SYMBOL(comp_data_blob_get_cmd);
 
 static void *default_alloc(size_t size)
 {
-	return rballoc(0, SOF_MEM_CAPS_RAM, size);
+	return rballoc(0, SOF_MEM_CAPS_RAM, size, __FUNCTION__);
 }
 
 static void default_free(void *buf)

@@ -32,13 +32,13 @@ void rfree(void *ptr)
 }
 
 void *rballoc_align(uint32_t flags, uint32_t caps, size_t bytes,
-		    uint32_t alignment)
+		    uint32_t alignment, const char* user)
 {
 	return malloc(bytes);
 }
 
 void *rbrealloc_align(void *ptr, uint32_t flags, uint32_t caps, size_t bytes,
-		      size_t old_bytes, uint32_t alignment)
+		      size_t old_bytes, uint32_t alignment, const char* user)
 {
 	return realloc(ptr, bytes);
 }

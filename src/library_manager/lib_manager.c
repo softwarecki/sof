@@ -69,7 +69,7 @@ static int lib_manager_auth_init(void)
 		return -EINVAL;
 
 	ext_lib->auth_buffer = rballoc_align(0, SOF_MEM_CAPS_RAM,
-					     AUTH_SCRATCH_BUFF_SZ, CONFIG_MM_DRV_PAGE_SIZE);
+					     AUTH_SCRATCH_BUFF_SZ, CONFIG_MM_DRV_PAGE_SIZE, __FUNCTION__);
 	if (!ext_lib->auth_buffer)
 		return -ENOMEM;
 
@@ -726,7 +726,7 @@ static int lib_manager_dma_buffer_alloc(struct lib_manager_dma_ext *dma_ext,
 	 * traditionally allocate a cached address for it
 	 */
 	dma_ext->dma_addr = (uintptr_t)rballoc_align(SOF_MEM_FLAG_COHERENT, SOF_MEM_CAPS_DMA, size,
-						     dma_ext->addr_align);
+						     dma_ext->addr_align, __FUNCTION__);
 	if (!dma_ext->dma_addr) {
 		tr_err(&lib_manager_tr, "lib_manager_dma_buffer_alloc(): alloc failed");
 		return -ENOMEM;
@@ -849,7 +849,7 @@ static void __sparse_cache *lib_manager_allocate_store_mem(uint32_t size,
 
 	uint32_t addr_align = PAGE_SZ;
 	/* allocate new buffer: cached alias */
-	local_add = (__sparse_force void __sparse_cache *)rballoc_align(0, caps, size, addr_align);
+	local_add = (__sparse_force void __sparse_cache *)rballoc_align(0, caps, size, addr_align, __FUNCTION__);
 
 	if (!local_add) {
 		tr_err(&lib_manager_tr, "lib_manager_allocate_store_mem(): alloc failed");
@@ -1031,7 +1031,7 @@ int lib_manager_load_library(uint32_t dma_id, uint32_t lib_id, uint32_t type)
 	/* allocate temporary manifest buffer */
 	man_tmp_buffer = (__sparse_force void __sparse_cache *)
 			rballoc_align(0, SOF_MEM_CAPS_DMA,
-				      MAN_MAX_SIZE_V1_8, CONFIG_MM_DRV_PAGE_SIZE);
+				      MAN_MAX_SIZE_V1_8, CONFIG_MM_DRV_PAGE_SIZE, __FUNCTION__);
 	if (!man_tmp_buffer) {
 		ret = -ENOMEM;
 		goto cleanup;

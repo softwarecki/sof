@@ -223,7 +223,7 @@ static int eq_fir_setup(struct comp_dev *dev, struct comp_data *cd, int nch)
 		return 0;
 
 	/* Allocate all FIR channels data in a big chunk and clear it */
-	cd->fir_delay = rballoc(0, SOF_MEM_CAPS_RAM, delay_size);
+	cd->fir_delay = rballoc(0, SOF_MEM_CAPS_RAM, delay_size, __FUNCTION__);
 	if (!cd->fir_delay) {
 		comp_err(dev, "eq_fir_setup(), delay allocation failed for size %d", delay_size);
 		return -ENOMEM;

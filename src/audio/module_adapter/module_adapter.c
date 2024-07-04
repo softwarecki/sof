@@ -346,7 +346,7 @@ int module_adapter_prepare(struct comp_dev *dev)
 	list_for_item(blist, &dev->bsource_list) {
 		size_t size = MAX(mod->deep_buff_bytes, mod->period_bytes);
 
-		mod->input_buffers[i].data = rballoc(0, SOF_MEM_CAPS_RAM, size);
+		mod->input_buffers[i].data = rballoc(0, SOF_MEM_CAPS_RAM, size, __FUNCTION__);
 		if (!mod->input_buffers[i].data) {
 			comp_err(mod->dev, "module_adapter_prepare(): Failed to alloc input buffer data");
 			ret = -ENOMEM;
@@ -358,7 +358,7 @@ int module_adapter_prepare(struct comp_dev *dev)
 	/* allocate memory for output buffer data */
 	i = 0;
 	list_for_item(blist, &dev->bsink_list) {
-		mod->output_buffers[i].data = rballoc(0, SOF_MEM_CAPS_RAM, md->mpd.out_buff_size);
+		mod->output_buffers[i].data = rballoc(0, SOF_MEM_CAPS_RAM, md->mpd.out_buff_size, __PRETTY_FUNCTION__);
 		if (!mod->output_buffers[i].data) {
 			comp_err(mod->dev, "module_adapter_prepare(): Failed to alloc output buffer data");
 			ret = -ENOMEM;

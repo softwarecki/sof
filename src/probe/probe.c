@@ -102,7 +102,7 @@ static int probe_dma_buffer_init(struct probe_dma_buf *buffer, uint32_t size,
 {
 	/* allocate new buffer */
 	buffer->addr = (uintptr_t)rballoc_align(0, SOF_MEM_CAPS_DMA,
-						size, align);
+						size, align, __FUNCTION__);
 
 	if (!buffer->addr) {
 		tr_err(&pr_tr, "probe_dma_buffer_init(): alloc failed");

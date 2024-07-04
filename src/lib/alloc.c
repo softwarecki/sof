@@ -942,7 +942,7 @@ static void *_balloc_unlocked(uint32_t flags, uint32_t caps, size_t bytes,
 
 /* allocates continuous buffers - not for direct use, clients use rballoc() */
 void *rballoc_align(uint32_t flags, uint32_t caps, size_t bytes,
-		    uint32_t alignment)
+		    uint32_t alignment, const char* user)
 {
 	struct mm *memmap = memmap_get();
 	void *ptr = NULL;
@@ -1005,7 +1005,7 @@ void rfree(void *ptr)
 }
 
 void *rbrealloc_align(void *ptr, uint32_t flags, uint32_t caps, size_t bytes,
-		      size_t old_bytes, uint32_t alignment)
+		      size_t old_bytes, uint32_t alignment, const char* user)
 {
 	struct mm *memmap = memmap_get();
 	void *new_ptr = NULL;

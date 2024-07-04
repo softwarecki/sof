@@ -551,7 +551,7 @@ int src_params_general(struct processing_module *mod,
 	/* free any existing delay lines. TODO reuse if same size */
 	rfree(cd->delay_lines);
 
-	cd->delay_lines = rballoc(0, SOF_MEM_CAPS_RAM, delay_lines_size);
+	cd->delay_lines = rballoc(0, SOF_MEM_CAPS_RAM, delay_lines_size, __FUNCTION__);
 	if (!cd->delay_lines) {
 		comp_err(dev, "src_params(): failed to alloc cd->delay_lines, delay_lines_size = %zu",
 			 delay_lines_size);

@@ -81,7 +81,7 @@ struct comp_buffer *buffer_alloc(size_t size, uint32_t caps, uint32_t flags, uin
 		return NULL;
 	}
 
-	stream_addr = rballoc_align(0, caps, size, align);
+	stream_addr = rballoc_align(0, caps, size, align, __FUNCTION__);
 	if (!stream_addr) {
 		tr_err(&buffer_tr, "buffer_alloc(): could not alloc size = %zu bytes of type = %u",
 		       size, caps);
@@ -185,7 +185,7 @@ struct comp_buffer *buffer_alloc_range(size_t preferred_size, size_t minimum_siz
 		preferred_size += minimum_size - preferred_size % minimum_size;
 
 	for (size = preferred_size; size >= minimum_size; size -= minimum_size) {
-		stream_addr = rballoc_align(0, caps, size, align);
+		stream_addr = rballoc_align(0, caps, size, align, __FUNCTION__);
 		if (stream_addr)
 			break;
 	}
@@ -236,11 +236,11 @@ int buffer_set_size(struct comp_buffer *buffer, uint32_t size, uint32_t alignmen
 
 	if (!alignment)
 		new_ptr = rbrealloc(audio_stream_get_addr(&buffer->stream), SOF_MEM_FLAG_NO_COPY,
-				    buffer->caps, size, audio_stream_get_size(&buffer->stream));
+				    buffer->caps, size, audio_stream_get_size(&buffer->stream), __FUNCTION__);
 	else
 		new_ptr = rbrealloc_align(audio_stream_get_addr(&buffer->stream),
 					  SOF_MEM_FLAG_NO_COPY, buffer->caps, size,
-					  audio_stream_get_size(&buffer->stream), alignment);
+					  audio_stream_get_size(&buffer->stream), alignment, __PRETTY_FUNCTION__);
 	/* we couldn't allocate bigger chunk */
 	if (!new_ptr && size > audio_stream_get_size(&buffer->stream)) {
 		buf_err(buffer, "resize can't alloc %u bytes type %u",
@@ -285,7 +285,7 @@ int buffer_set_size_range(struct comp_buffer *buffer, size_t preferred_size, siz
 		for (new_size = preferred_size; new_size >= minimum_size;
 		     new_size -= minimum_size) {
 			new_ptr = rbrealloc(ptr, SOF_MEM_FLAG_NO_COPY, buffer->caps, new_size,
-					    actual_size);
+					    actual_size, __FUNCTION__);
 			if (new_ptr)
 				break;
 		}
@@ -293,7 +293,7 @@ int buffer_set_size_range(struct comp_buffer *buffer, size_t preferred_size, siz
 		for (new_size = preferred_size; new_size >= minimum_size;
 		     new_size -= minimum_size) {
 			new_ptr = rbrealloc_align(ptr, SOF_MEM_FLAG_NO_COPY, buffer->caps, new_size,
-						  actual_size, alignment);
+						  actual_size, alignment, __PRETTY_FUNCTION__);
 			if (new_ptr)
 				break;
 		}

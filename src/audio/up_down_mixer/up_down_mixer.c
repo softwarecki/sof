@@ -353,8 +353,8 @@ static int up_down_mixer_init(struct processing_module *mod)
 
 	mod_data->private = cd;
 
-	cd->buf_in = rballoc(0, SOF_MEM_CAPS_RAM, mod->priv.cfg.base_cfg.ibs);
-	cd->buf_out = rballoc(0, SOF_MEM_CAPS_RAM, mod->priv.cfg.base_cfg.obs);
+	cd->buf_in = rballoc(0, SOF_MEM_CAPS_RAM, mod->priv.cfg.base_cfg.ibs, __FUNCTION__);
+	cd->buf_out = rballoc(0, SOF_MEM_CAPS_RAM, mod->priv.cfg.base_cfg.obs, __PRETTY_FUNCTION__);
 	if (!cd->buf_in || !cd->buf_out) {
 		ret = -ENOMEM;
 		goto err;

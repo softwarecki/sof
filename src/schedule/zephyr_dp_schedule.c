@@ -513,7 +513,7 @@ int scheduler_dp_task_init(struct task **task,
 	/* allocate stack - must be aligned and cached so a separate alloc */
 	stack_size = Z_KERNEL_STACK_SIZE_ADJUST(stack_size);
 	p_stack = (__sparse_force void __sparse_cache *)
-		rballoc_align(0, SOF_MEM_CAPS_RAM, stack_size, Z_KERNEL_STACK_OBJ_ALIGN);
+		rballoc_align(0, SOF_MEM_CAPS_RAM, stack_size, Z_KERNEL_STACK_OBJ_ALIGN, __FUNCTION__);
 	if (!p_stack) {
 		tr_err(&dp_tr, "zephyr_dp_task_init(): stack alloc failed");
 		ret = -ENOMEM;

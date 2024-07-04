@@ -199,7 +199,7 @@ static void l3_heap_free(struct k_heap *h, void *mem)
 #if CONFIG_VIRTUAL_HEAP
 struct alloc_entry {
 	const void *addr;
-	uint32_t user;
+	const char* user;
 	size_t size;
 };
 uint32_t alloc_count;
@@ -211,7 +211,7 @@ static void alloc_history_init()
 	alloc_count = 0;
 }
 
-static void alloc_history_add(const void *addr, uint32_t user, size_t size)
+static void alloc_history_add(const void *addr, const char* user, size_t size)
 {
 	if (alloc_count >= ARRAY_SIZE(alloc_list)) {
 		tr_err(&zephyr_tr, "Alloc list full!");
@@ -265,7 +265,7 @@ void alloc_history_print()
 
 	for (i = 0; i < alloc_count; i++) {
 		struct alloc_entry *entry = &alloc_list[i];
-		tr_warn(&zephyr_tr, "%zu @ %p by %x", entry->size, entry->addr, entry->user);
+		tr_warn(&zephyr_tr, "%zu @ %p by %s", entry->size, entry->addr, entry->user);
 	}
 #endif
 }
@@ -273,7 +273,7 @@ void alloc_history_print()
 
 #if CONFIG_VIRTUAL_HEAP
 static void *virtual_heap_alloc(struct vmh_heap *heap, uint32_t flags, uint32_t caps, size_t bytes,
-				uint32_t align)
+				uint32_t align, const char* user)
 {
 	void *mem;
 
@@ -494,13 +494,13 @@ EXPORT_SYMBOL(rmalloc);
 
 /* Use SOF_MEM_ZONE_BUFFER at the moment */
 void *rbrealloc_align(void *ptr, uint32_t flags, uint32_t caps, size_t bytes,
-		      size_t old_bytes, uint32_t alignment)
+		      size_t old_bytes, uint32_t alignment, const char* user)
 {
 	void *new_ptr;
 
 	if (!ptr) {
 		/* TODO: Use correct zone */
-		return rballoc_align(flags, caps, bytes, alignment);
+		return rballoc_align(flags, caps, bytes, alignment, user);
 	}
 
 	/* Original version returns NULL without freeing this memory */
@@ -510,7 +510,7 @@ void *rbrealloc_align(void *ptr, uint32_t flags, uint32_t caps, size_t bytes,
 		return NULL;
 	}
 
-	new_ptr = rballoc_align(flags, caps, bytes, alignment);
+	new_ptr = rballoc_align(flags, caps, bytes, alignment, user);
 	if (!new_ptr)
 		return NULL;
 
@@ -550,7 +550,7 @@ EXPORT_SYMBOL(rzalloc);
  * @return Pointer to the allocated memory or NULL if failed.
  */
 void *rballoc_align(uint32_t flags, uint32_t caps, size_t bytes,
-		    uint32_t align)
+		    uint32_t align, const char* user)
 {
 	struct k_heap *heap;
 
@@ -570,7 +570,7 @@ void *rballoc_align(uint32_t flags, uint32_t caps, size_t bytes,
 #if CONFIG_VIRTUAL_HEAP
 	/* Use virtual heap if it is available */
 	if (virtual_buffers_heap)
-		return virtual_heap_alloc(virtual_buffers_heap, flags, caps, bytes, align);
+		return virtual_heap_alloc(virtual_buffers_heap, flags, caps, bytes, align, user);
 #endif /* CONFIG_VIRTUAL_HEAP */
 
 	if (flags & SOF_MEM_FLAG_COHERENT)

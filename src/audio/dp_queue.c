@@ -282,7 +282,7 @@ struct dp_queue *dp_queue_create(size_t min_available, size_t min_free_space, ui
 	/* allocate data buffer - always in cached memory alias */
 	dp_queue->data_buffer_size = ALIGN_UP(dp_queue->data_buffer_size, PLATFORM_DCACHE_ALIGN);
 	dp_queue->_data_buffer = (__sparse_force __sparse_cache void *)
-			rballoc_align(0, 0, dp_queue->data_buffer_size, PLATFORM_DCACHE_ALIGN);
+			rballoc_align(0, 0, dp_queue->data_buffer_size, PLATFORM_DCACHE_ALIGN, __FUNCTION__);
 	if (!dp_queue->_data_buffer)
 		goto err;
 

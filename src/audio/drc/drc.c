@@ -77,7 +77,7 @@ int drc_init_pre_delay_buffers(struct drc_state *state,
 	int i;
 
 	/* Allocate pre-delay (lookahead) buffers */
-	state->pre_delay_buffers[0] = rballoc(0, SOF_MEM_CAPS_RAM, bytes_total);
+	state->pre_delay_buffers[0] = rballoc(0, SOF_MEM_CAPS_RAM, bytes_total, __FUNCTION__);
 	if (!state->pre_delay_buffers[0])
 		return -ENOMEM;
 

@@ -724,7 +724,7 @@ static int dai_set_dma_config(struct dai_data *dd, struct comp_dev *dev)
 	comp_dbg(dev, "dai_set_dma_config()");
 
 	dma_cfg = rballoc(SOF_MEM_FLAG_COHERENT, SOF_MEM_CAPS_RAM | SOF_MEM_CAPS_DMA,
-			  sizeof(struct dma_config));
+			  sizeof(struct dma_config), __FUNCTION__);
 	if (!dma_cfg) {
 		comp_err(dev, "dai_set_dma_config(): dma_cfg allocation failed");
 		return -ENOMEM;
@@ -754,7 +754,7 @@ static int dai_set_dma_config(struct dai_data *dd, struct comp_dev *dev)
 		dma_cfg->dma_slot = config->src_dev;
 
 	dma_block_cfg = rballoc(SOF_MEM_FLAG_COHERENT, SOF_MEM_CAPS_RAM | SOF_MEM_CAPS_DMA,
-				sizeof(struct dma_block_config) * dma_cfg->block_count);
+				sizeof(struct dma_block_config) * dma_cfg->block_count, __PRETTY_FUNCTION__);
 	if (!dma_block_cfg) {
 		rfree(dma_cfg);
 		comp_err(dev, "dai_set_dma_config: dma_block_config allocation failed");

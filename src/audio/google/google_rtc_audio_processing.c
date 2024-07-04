@@ -102,7 +102,7 @@ struct google_rtc_audio_processing_comp_data {
 
 void *GoogleRtcMalloc(size_t size)
 {
-	return rballoc(0, SOF_MEM_CAPS_RAM, size);
+	return rballoc(0, SOF_MEM_CAPS_RAM, size, __FUNCTION__);
 }
 
 void GoogleRtcFree(void *ptr)

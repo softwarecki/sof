@@ -107,7 +107,7 @@ void rtnr_printf(int a, int b, int c, int d, int e)
 
 void *rtk_rballoc(unsigned int flags, unsigned int caps, unsigned int bytes)
 {
-	return rballoc(flags, caps, bytes);
+	return rballoc(flags, caps, bytes, __FUNCTION__);
 }
 
 void rtk_rfree(void *ptr)

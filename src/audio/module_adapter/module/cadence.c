@@ -240,7 +240,7 @@ static int cadence_codec_post_init(struct processing_module *mod)
 		return ret;
 	}
 	/* Allocate space for codec object */
-	cd->self = rballoc(0, SOF_MEM_CAPS_RAM, obj_size);
+	cd->self = rballoc(0, SOF_MEM_CAPS_RAM, obj_size, __FUNCTION__);
 	if (!cd->self) {
 		comp_err(dev, "cadence_codec_init(): failed to allocate space for lib object");
 		return -ENOMEM;

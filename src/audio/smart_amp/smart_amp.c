@@ -94,7 +94,7 @@ static inline void smart_amp_free_mod_memories(struct smart_amp_data *sad)
 
 static inline int smart_amp_buf_alloc(struct smart_amp_buf *buf, size_t size)
 {
-	buf->data = rballoc(0, SOF_MEM_CAPS_RAM, size);
+	buf->data = rballoc(0, SOF_MEM_CAPS_RAM, size, __FUNCTION__);
 	if (!buf->data)
 		return -ENOMEM;
 	buf->size = size;

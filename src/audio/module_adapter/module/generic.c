@@ -42,13 +42,13 @@ int module_load_config(struct comp_dev *dev, const void *cfg, size_t size)
 
 	if (!dst->data) {
 		/* No space for config available yet, allocate now */
-		dst->data = rballoc(0, SOF_MEM_CAPS_RAM, size);
+		dst->data = rballoc(0, SOF_MEM_CAPS_RAM, size, __FUNCTION__);
 	} else if (dst->size != size) {
 		/* The size allocated for previous config doesn't match the new one.
 		 * Free old container and allocate new one.
 		 */
 		rfree(dst->data);
-		dst->data = rballoc(0, SOF_MEM_CAPS_RAM, size);
+		dst->data = rballoc(0, SOF_MEM_CAPS_RAM, size, __PRETTY_FUNCTION__);
 	}
 	if (!dst->data) {
 		comp_err(dev, "module_load_config(): failed to allocate space for setup config.");
@@ -148,9 +148,9 @@ void *module_allocate_memory(struct processing_module *mod, uint32_t size, uint3
 
 	/* Allocate memory for module */
 	if (alignment)
-		ptr = rballoc_align(0, SOF_MEM_CAPS_RAM, size, alignment);
+		ptr = rballoc_align(0, SOF_MEM_CAPS_RAM, size, alignment, __FUNCTION__);
 	else
-		ptr = rballoc(0, SOF_MEM_CAPS_RAM, size);
+		ptr = rballoc(0, SOF_MEM_CAPS_RAM, size, __PRETTY_FUNCTION__);
 
 	if (!ptr) {
 		comp_err(dev, "module_allocate_memory: failed to allocate memory for comp %x.",
@@ -467,7 +467,7 @@ int module_set_configuration(struct processing_module *mod,
 		}
 
 		/* Allocate buffer for new params */
-		md->runtime_params = rballoc(0, SOF_MEM_CAPS_RAM, md->new_cfg_size);
+		md->runtime_params = rballoc(0, SOF_MEM_CAPS_RAM, md->new_cfg_size, __FUNCTION__);
 		if (!md->runtime_params) {
 			comp_err(dev, "module_set_configuration(): space allocation for new params failed");
 			return -ENOMEM;

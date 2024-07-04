@@ -289,7 +289,7 @@ static int dma_trace_buffer_init(struct dma_trace_data *d)
 
 	/* For DMA to work properly the buffer must be correctly aligned */
 	buf = rballoc_align(0, SOF_MEM_CAPS_RAM | SOF_MEM_CAPS_DMA,
-			    DMA_TRACE_LOCAL_SIZE, addr_align);
+			    DMA_TRACE_LOCAL_SIZE, addr_align, __FUNCTION__);
 	if (!buf) {
 		mtrace_printf(LOG_LEVEL_ERROR, "dma_trace_buffer_init(): alloc failed");
 		return -ENOMEM;

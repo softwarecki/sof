@@ -72,7 +72,7 @@ void cpu_notify_state_entry(enum pm_state state)
 		/* allocate IMR buffer and store it in the global pointer */
 		global_imr_ram_storage = rballoc_align(0, SOF_MEM_CAPS_L3,
 						       storage_buffer_size,
-						       PLATFORM_DCACHE_ALIGN);
+						       PLATFORM_DCACHE_ALIGN, __FUNCTION__);
 
 		/* If no IMR buffer we can not recover */
 		if (!global_imr_ram_storage) {

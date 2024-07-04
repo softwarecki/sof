@@ -136,7 +136,7 @@ int aria_init(struct processing_module *mod)
 	}
 	mod_data->private = cd;
 
-	buf = rballoc(0, SOF_MEM_CAPS_RAM, req_mem);
+	buf = rballoc(0, SOF_MEM_CAPS_RAM, req_mem, __FUNCTION__);
 
 	if (!buf) {
 		rfree(cd);

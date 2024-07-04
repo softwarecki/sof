@@ -740,7 +740,7 @@ static struct comp_dev *test_keyword_new(const struct comp_driver *drv,
 #if CONFIG_KWD_NN_SAMPLE_KEYPHRASE
 	/* global buffer to accumulate data for processing */
 	cd->input = rballoc_align(0, SOF_MEM_CAPS_RAM,
-				  sizeof(int16_t) * KWD_NN_IN_BUFF_SIZE, 64);
+				  sizeof(int16_t) * KWD_NN_IN_BUFF_SIZE, 64, __FUNCTION__);
 	if (!cd->input) {
 		comp_err(dev, "test_keyword_new(): input alloc failed");
 		goto cd_fail;

@@ -779,7 +779,7 @@ static int ipc4_process_ipcgtw_cmd(struct ipc4_message_request *ipc4)
 	msg_reply.extension = reply_size;
 
 	if (reply_size > 0) {
-		msg_reply.tx_data = rballoc(0, SOF_MEM_CAPS_RAM, reply_size);
+		msg_reply.tx_data = rballoc(0, SOF_MEM_CAPS_RAM, reply_size, __FUNCTION__);
 		if (msg_reply.tx_data) {
 			msg_reply.tx_size = reply_size;
 		} else {
@@ -1115,7 +1115,7 @@ static int ipc4_get_large_config_module_instance(struct ipc4_message_request *ip
 		return ret;
 
 	msg_reply.extension = reply.extension.dat;
-	response_buffer = rballoc(0, SOF_MEM_CAPS_RAM, data_offset);
+	response_buffer = rballoc(0, SOF_MEM_CAPS_RAM, data_offset, __FUNCTION__);
 	if (response_buffer) {
 		msg_reply.tx_size = data_offset;
 		msg_reply.tx_data = response_buffer;
