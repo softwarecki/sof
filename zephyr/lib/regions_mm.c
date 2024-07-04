@@ -13,6 +13,7 @@
 #include <version.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/cache.h>
+#include <errno.h>
 LOG_MODULE_REGISTER(vmh_allocator, CONFIG_SOF_LOG_LEVEL);
 
 extern struct tr_ctx zephyr_tr;
@@ -45,14 +46,18 @@ struct vmh_heap *vmh_init_heap(const struct vmh_heap_config *cfg,
 	int i;
 
 	/* Check if we haven't created heap for this region already */
-	if (vmh_get_heap_by_attribute(memory_region_attribute, core_id))
+	if (vmh_get_heap_by_attribute(memory_region_attribute, core_id)) {
+		tr_err(&zephyr_tr, "heap already created.");
 		return NULL;
+	}
 
 	struct vmh_heap *new_heap =
 		rzalloc(SOF_MEM_ZONE_RUNTIME_SHARED, 0, SOF_MEM_CAPS_RAM, sizeof(*new_heap));
 
-	if (!new_heap)
+	if (!new_heap) {
+		tr_err(&zephyr_tr, "!new_heap");
 		return NULL;
+	}
 
 	new_heap->core_id = core_id;
 	list_init(&new_heap->node);
@@ -76,8 +81,10 @@ struct vmh_heap *vmh_init_heap(const struct vmh_heap_config *cfg,
 		}
 	}
 
-	if (!new_heap->virtual_region)
+	if (!new_heap->virtual_region) {
+		tr_err(&zephyr_tr, "No matching region.");
 		goto fail;
+	}
 
 	/* If no config was specified we will use default one */
 	if (!cfg) {
@@ -93,14 +100,22 @@ struct vmh_heap *vmh_init_heap(const struct vmh_heap_config *cfg,
 	for (i = 0; i < MAX_MEMORY_ALLOCATORS_COUNT; i++) {
 		if (cfg->block_bundles_table[i].block_size > 0) {
 			/* Block sizes can only be powers of 2*/
-			if (!is_power_of_2(cfg->block_bundles_table[i].block_size))
+			if (!is_power_of_2(cfg->block_bundles_table[i].block_size)) {
+				tr_err(&zephyr_tr, "Invalid block size.");
 				goto fail;
+			}
 			total_requested_size += cfg->block_bundles_table[i].block_size *
 				cfg->block_bundles_table[i].number_of_blocks;
 
-			if (total_requested_size > new_heap->virtual_region->size ||
-					total_requested_size % CONFIG_MM_DRV_PAGE_SIZE)
+			if (total_requested_size > new_heap->virtual_region->size) {
+				tr_err(&zephyr_tr, "Config too big.");
 				goto fail;
+			}
+
+			if (total_requested_size % CONFIG_MM_DRV_PAGE_SIZE) {
+				tr_err(&zephyr_tr, "Unaligned heap size.");
+				goto fail;
+			}
 		}
 	}
 
@@ -136,8 +151,10 @@ struct vmh_heap *vmh_init_heap(const struct vmh_heap_config *cfg,
 		struct sys_mem_blocks *new_allocator = rzalloc(SOF_MEM_ZONE_RUNTIME_SHARED,
 			0, SOF_MEM_CAPS_RAM, sizeof(sys_mem_blocks_t));
 
-		if (!new_allocator)
+		if (!new_allocator) {
+			tr_err(&zephyr_tr, "!new_allocator");
 			goto fail;
+		}
 
 		/* Assign allocator(mem_block) to table */
 		new_heap->physical_blocks_allocators[i] = new_allocator;
@@ -151,8 +168,10 @@ struct vmh_heap *vmh_init_heap(const struct vmh_heap_config *cfg,
 		struct sys_bitarray *allocators_bitarray = rzalloc(SOF_MEM_ZONE_RUNTIME_SHARED,
 			0, SOF_MEM_CAPS_RAM, sizeof(sys_bitarray_t));
 
-		if (!allocators_bitarray)
+		if (!allocators_bitarray) {
+			tr_err(&zephyr_tr, "!allocators_bitarray");
 			goto fail;
+		}
 
 		allocators_bitarray->num_bits =	cfg->block_bundles_table[i].number_of_blocks;
 		allocators_bitarray->num_bundles = bitarray_size;
@@ -168,8 +187,10 @@ struct vmh_heap *vmh_init_heap(const struct vmh_heap_config *cfg,
 			rzalloc(SOF_MEM_ZONE_RUNTIME_SHARED,
 				0, SOF_MEM_CAPS_RAM, sizeof(sys_bitarray_t));
 
-		if (!allocation_sizes_bitarray)
+		if (!allocation_sizes_bitarray) {
+			tr_err(&zephyr_tr, "!allocation_sizes_bitarray");
 			goto fail;
+		}
 
 		allocation_sizes_bitarray->num_bits = allocators_bitarray->num_bits;
 		allocation_sizes_bitarray->num_bundles = allocators_bitarray->num_bundles;
@@ -181,16 +202,20 @@ struct vmh_heap *vmh_init_heap(const struct vmh_heap_config *cfg,
 		uint32_t *allocator_bitarray_bitfield =
 			rzalloc(SOF_MEM_ZONE_RUNTIME_SHARED, 0, SOF_MEM_CAPS_RAM, bitfield_size);
 
-		if (!allocator_bitarray_bitfield)
+		if (!allocator_bitarray_bitfield) {
+			tr_err(&zephyr_tr, "!allocator_bitarray_bitfield");
 			goto fail;
+		}
 
 		allocators_bitarray->bundles = allocator_bitarray_bitfield;
 
 		uint32_t *sizes_bitarray_bitfield = rzalloc(SOF_MEM_ZONE_RUNTIME_SHARED, 0,
 			SOF_MEM_CAPS_RAM, bitfield_size);
 
-		if (!sizes_bitarray_bitfield)
+		if (!sizes_bitarray_bitfield) {
+			tr_err(&zephyr_tr, "!sizes_bitarray_bitfield");
 			goto fail;
+		}
 
 		new_heap->allocation_sizes[i]->bundles = sizes_bitarray_bitfield;
 
@@ -361,9 +386,12 @@ void *vmh_alloc(struct vmh_heap *heap, uint32_t alloc_size)
 {
 	if (!alloc_size)
 		return NULL;
+
 	/* Only operations on the same core are allowed */
-	if (heap->core_id != cpu_get_id())
+	if (heap->core_id != cpu_get_id()) {
+		tr_err(&zephyr_tr, "Invalid core id.");
 		return NULL;
+	}
 
 	void *ptr = NULL;
 	int mem_block_iterator, allocation_error_code = -ENOMEM;
@@ -459,22 +487,26 @@ void *vmh_alloc(struct vmh_heap *heap, uint32_t alloc_size)
 					block_count - 1, allocation_bitarray_position);
 			break;
 		}
+
+		tr_warn(&zephyr_tr, "Unable to allocate %zu bytes from %zu. Error code: %d",
+			alloc_size, block_size, allocation_error_code);
 	}
-
-	tr_warn(&zephyr_tr, "alloc %zu from %zu @ %p", alloc_size, block_size, ptr);
-
 
 	/* If ptr is NULL it means we did not allocate anything and we should
 	 * break execution here
 	 */
-	if (!ptr)
+	if (!ptr) {
+		tr_err(&zephyr_tr, "Unable to allocate %zu bytes. Error code: %d", alloc_size,
+		       allocation_error_code);
 		return NULL;
+	}
 
 	allocation_error_code = vmh_map_region(heap->physical_blocks_allocators[mem_block_iterator],
 					       ptr, alloc_size);
 	if (allocation_error_code) {
 		sys_mem_blocks_free_contiguous(heap->physical_blocks_allocators[mem_block_iterator],
 					       ptr, block_count);
+		tr_err(&zephyr_tr, "map region failed %d", allocation_error_code);
 		return NULL;
 	}
 
@@ -532,8 +564,10 @@ int vmh_free(struct vmh_heap *heap, void *ptr)
 {
 	int retval;
 
-	if (heap->core_id != cpu_get_id())
+	if (heap->core_id != cpu_get_id()) {
+		tr_err(&zephyr_tr, "Invalid core id.");
 		return -EINVAL;
+	}
 
 	size_t mem_block_iter, i, size_to_free, block_size, ptr_bit_array_offset,
 		ptr_bit_array_position, blocks_to_free;
@@ -555,8 +589,10 @@ int vmh_free(struct vmh_heap *heap, void *ptr)
 			break;
 		}
 	}
-	if (!ptr_range_found)
+	if (!ptr_range_found) {
+		tr_err(&zephyr_tr, "Range not found.");
 		return -EINVAL;
+	}
 
 	/* Initially set size to block size */
 	size_to_free = block_size;
@@ -588,8 +624,10 @@ int vmh_free(struct vmh_heap *heap, void *ptr)
 		 * we need to test previous bit from allocation if it is set then
 		 * something went wrong in calculations.
 		 */
-		if (prev_bit_value)
-			return -EINVAL;
+		if (prev_bit_value) {
+			tr_err(&zephyr_tr, "Invalid prev bit value.");
+			return -ERANGE;
+		}
 
 		if (bit_value) {
 			/* Neeeeeeeds optimization - thinking how to do it properly
@@ -627,15 +665,17 @@ int vmh_free(struct vmh_heap *heap, void *ptr)
 			1, &ptr);
 	}
 
-	if (retval)
+	if (retval) {
+		tr_err(&zephyr_tr, "Memblocks free error %d", retval);
 		return retval;
-
-	tr_warn(&zephyr_tr, "free %zu @ %p", size_to_free, ptr);
+	}
 
 	sys_cache_data_flush_and_invd_range(ptr, size_to_free);
-	return vmh_unmap_region(heap->physical_blocks_allocators[mem_block_iter], ptr,
+	retval = vmh_unmap_region(heap->physical_blocks_allocators[mem_block_iter], ptr,
 				size_to_free);
-
+	if (retval)
+		tr_err(&zephyr_tr, "Unmap error %d", retval);
+	return retval;
 }
 
 /**
