@@ -197,6 +197,81 @@ static void l3_heap_free(struct k_heap *h, void *mem)
 #endif
 
 #if CONFIG_VIRTUAL_HEAP
+struct alloc_entry {
+	const void *addr;
+	uint32_t user;
+	size_t size;
+};
+uint32_t alloc_count;
+struct alloc_entry alloc_list[128];
+
+static void alloc_history_init()
+{
+	memset(alloc_list, 0, sizeof(alloc_list));
+	alloc_count = 0;
+}
+
+static void alloc_history_add(const void *addr, uint32_t user, size_t size)
+{
+	if (alloc_count >= ARRAY_SIZE(alloc_list)) {
+		tr_err(&zephyr_tr, "Alloc list full!");
+		return;
+	}
+
+	struct alloc_entry *entry = &alloc_list[alloc_count++];
+	entry->addr = addr;
+	entry->user = user;
+	entry->size = size;
+}
+
+static struct alloc_entry *alloc_history_find(const void *addr)
+{
+	int i;
+	for (i = 0; i < alloc_count; i++)
+		if (alloc_list[i].addr == addr)
+			return &alloc_list[i];
+	
+	return NULL;
+}
+
+static void alloc_history_remove(const void *addr)
+{
+	if (!alloc_count) {
+		tr_err(&zephyr_tr, "Alloc list empty!");
+		return;
+	}
+
+	struct alloc_entry *to_delete = alloc_history_find(addr);
+	if (!to_delete) {
+		tr_err(&zephyr_tr, "Alloc entry not found!");
+		return;
+	}
+	struct alloc_entry *last = &alloc_list[--alloc_count];
+
+	*to_delete = *last;
+	memset(last, 0, sizeof(*last));
+}
+#endif
+
+void alloc_history_print()
+{
+#if CONFIG_VIRTUAL_HEAP
+	int i;
+
+	if (!alloc_count) {
+		tr_warn(&zephyr_tr, "Alloc list empty :)");
+		return;
+	}
+
+	for (i = 0; i < alloc_count; i++) {
+		struct alloc_entry *entry = &alloc_list[i];
+		tr_warn(&zephyr_tr, "%zu @ %p by %x", entry->size, entry->addr, entry->user);
+	}
+#endif
+}
+
+
+#if CONFIG_VIRTUAL_HEAP
 static void *virtual_heap_alloc(struct vmh_heap *heap, uint32_t flags, uint32_t caps, size_t bytes,
 				uint32_t align)
 {
@@ -205,10 +280,14 @@ static void *virtual_heap_alloc(struct vmh_heap *heap, uint32_t flags, uint32_t 
 	K_SPINLOCK(&vmh_lock) {
 		heap->core_id = cpu_get_id();
 		mem = vmh_alloc(heap, bytes);
+		if (mem)
+			alloc_history_add(mem, user, bytes);
 	}
 
-	if (!mem)
+	if (!mem) {
+		alloc_history_print();
 		return NULL;
+	}
 
 	assert(IS_ALIGNED(mem, align));
 
@@ -243,6 +322,7 @@ static void virtual_heap_free(void *ptr)
 	ptr = (__sparse_force void *)sys_cache_cached_ptr_get(ptr);
 
 	K_SPINLOCK(&vmh_lock) {
+		alloc_history_remove(ptr);
 		ret = vmh_free(virtual_buffers_heap, ptr);
 	}
 
@@ -266,6 +346,7 @@ static const struct vmh_heap_config static_hp_buffers = {
 
 static int virtual_heap_init(void)
 {
+	alloc_history_init();
 	k_spinlock_init(&vmh_lock);
 
 	virtual_buffers_heap = vmh_init_heap(&static_hp_buffers, MEM_REG_ATTR_SHARED_HEAP, 0,
