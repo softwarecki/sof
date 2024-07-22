@@ -620,6 +620,7 @@ zephyr_library_sources_ifdef(CONFIG_COMP_MODULE_ADAPTER
 	${SOF_AUDIO_PATH}/module_adapter/module_adapter.c
 	${SOF_AUDIO_PATH}/module_adapter/module_adapter_${ipc_suffix}.c
 	${SOF_AUDIO_PATH}/module_adapter/module/generic.c
+	${SOF_AUDIO_PATH}/module_adapter/module/instance.c
 )
 
 zephyr_library_sources_ifdef(CONFIG_LIBRARY_MANAGER

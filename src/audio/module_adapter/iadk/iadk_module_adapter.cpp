@@ -27,6 +27,7 @@ namespace dsp_fw
 				       size_t module_size)
 				       :processing_module_(processing_module)
 {
+	  module_instance_init(this, module_id, instance_id, core_id);
 }
 
 int IadkModuleAdapter::IadkModuleAdapter_Init(void)
@@ -161,7 +162,9 @@ enum module_processing_mode IadkModuleAdapter::IadkModuleAdapter_GetProcessingMo
 /* C wrappers for C++  ProcessingModuleInterface() methods. */
 int IadkModuleAdapter::IadkModuleAdapter_Free(void)
 {
-	return processing_module_.Delete();
+	int ret = processing_module_.Delete();
+	module_instance_free(this);
+	return ret;
 }
 
 

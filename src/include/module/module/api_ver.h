@@ -22,6 +22,13 @@
 #define SOF_MODULE_API_MIDDLE_VERSION	0
 #define SOF_MODULE_API_MINOR_VERSION	0
 
+/* Defines the size of the space reserved within ModuleHandle for sof to store its private data.
+ * This size comes from the IADK header files and must match the IADK API version.
+ * Please do not modify this value!
+ */
+#define MODULE_PASS_BUFFER_SIZE		320
+
+
 #define SOF_MODULE_API_CURRENT_VERSION	MODULE_API_VERSION_ENCODE(SOF_MODULE_API_MAJOR_VERSION,	\
 	SOF_MODULE_API_MIDDLE_VERSION, SOF_MODULE_API_MINOR_VERSION)
 

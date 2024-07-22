@@ -15,6 +15,9 @@
 #include <module_initial_settings.h>
 #include <adsp_stddef.h>
 #include <system_error.h>
+#include <sof/common.h>
+#include <api_version.h>
+#include <sof/audio/module_adapter/module/instance.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,6 +32,8 @@ extern "C" {
 extern "C" {
 namespace dsp_fw
 {
+	typedef struct module_instance ModuleInstance;
+
 	/*!
 	 * \brief This ModuleAdapter class can adapt a ProcessingModuleInterface instance into
 	 *        a ModuleInstance instance.
@@ -36,7 +41,7 @@ namespace dsp_fw
 	 * The overall base FW can only handle ModuleInstance object. Purpose of this adapter is
 	 * to turn an intel_adsp::ProcessingModuleInterface object into a ModuleInstance object.
 	 */
-	class IadkModuleAdapter
+	class IadkModuleAdapter : public ModuleInstance
 	{
 	public:
 		IadkModuleAdapter(intel_adsp::ProcessingModuleInterface &processing_module,
@@ -111,6 +116,8 @@ namespace dsp_fw
 
 		intel_adsp::ProcessingModuleInterface &processing_module_;
 	};
+
+STATIC_ASSERT(sizeof(IadkModuleAdapter) <= MODULE_PASS_BUFFER_SIZE, IadkModuleAdapter_too_big);
 
 } /* namespace dsp_fw */
 
