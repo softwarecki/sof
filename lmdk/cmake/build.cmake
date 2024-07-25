@@ -11,7 +11,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/config.cmake)
 
 # Build common module functions from sof to a static library
 add_library(sof STATIC)
-target_include_directories(sof PRIVATE "${SOF_BASE}/src/include")
+target_include_directories(sof PRIVATE "${SOF_BASE}/src/include" "${RIMAGE_INCLUDE_DIR}")
 add_subdirectory("${SOF_BASE}/src/module" module_api)
 
 foreach(MODULE ${MODULES_LIST})
