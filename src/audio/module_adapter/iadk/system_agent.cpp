@@ -118,9 +118,6 @@ int SystemAgent::CheckIn(ProcessingModuleFactoryInterface& module_factory,
 } /* namespace system */
 } /* namespace intel_adsp */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 /* The create_instance_f is a function call type known in IADK module. The module entry_point
  * points to this type of function which starts module creation.
  */
@@ -139,10 +136,6 @@ void* system_agent_start(uint32_t entry_point, uint32_t module_id, uint32_t inst
 
 	return system_agent_p;
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 extern "C" void __cxa_pure_virtual()  __attribute__((weak));
 
