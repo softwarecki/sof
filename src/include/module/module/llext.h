@@ -22,10 +22,10 @@
 }
 
 #define SOF_LLEXT_MOD_ENTRY(name, interface) \
-static const struct module_interface *name##_llext_entry(void *mod_cfg, \
-					void *parent_ppl, void **mod_ptr) \
+static int name##_llext_entry(const void *mod_cfg, uint32_t instance_id, void **mod_ptr) \
 { \
-	return interface; \
+	*(const struct module_interface **)mod_ptr = interface; \
+	return 0; \
 }
 
 #define SOF_LLEXT_BUILDINFO \

@@ -14,14 +14,15 @@
  * points to this type of function which starts module creation.
  */
 
-typedef void* (*native_create_instance_f)(void *mod_cfg, void *parent_ppl,
-					  void **mod_ptr);
+typedef int (*native_create_instance_f)(const void *mod_cfg, uint32_t instance_id, void **mod_ptr);
 
 struct native_system_agent native_sys_agent;
 
 void *native_system_agent_start(uint32_t entry_point, uint32_t module_id, uint32_t instance_id,
 				uint32_t core_id, uint32_t log_handle, void *mod_cfg)
 {
+	int ret;
+
 	native_sys_agent.module_id = module_id;
 	native_sys_agent.instance_id = instance_id;
 	native_sys_agent.core_id = core_id;
@@ -31,5 +32,6 @@ void *native_system_agent_start(uint32_t entry_point, uint32_t module_id, uint32
 
 	native_create_instance_f ci = (native_create_instance_f)entry_point;
 
-	return ci(mod_cfg, NULL, &system_agent_p);
+	ret = ci(mod_cfg, instance_id, &system_agent_p);
+	return system_agent_p;
 }

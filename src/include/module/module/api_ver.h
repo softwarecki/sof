@@ -16,10 +16,9 @@
 #define SOF_MODULE_API_BUILD_INFO_FORMAT	0x80000000
 
 /*
- *  Api version 5.0.0 for sof loadable modules
+ *  Api version 1.0.0 for sof loadable modules
  */
-
-#define SOF_MODULE_API_MAJOR_VERSION	5
+#define SOF_MODULE_API_MAJOR_VERSION	1
 #define SOF_MODULE_API_MIDDLE_VERSION	0
 #define SOF_MODULE_API_MINOR_VERSION	0
 
