@@ -24,12 +24,12 @@ static int native_system_agent_check_in(struct system_agent *agent,
 					size_t size)
 {
 	struct native_system_agent *self = CONTAINER_OF(agent, struct native_system_agent, public);
-	struct module_instance *instance = (struct module_instance *)placeholder;
+	self->mod_instance = (struct module_instance *)placeholder;
 	(void)interface;
 
 	self->module_size = size;
 
-	module_instance_init(instance, self->public.module_id, self->public.instance_id,
+	module_instance_init(self->mod_instance, self->public.module_id, self->public.instance_id,
 			     self->public.core_id);
 	return 0;
 }
@@ -41,8 +41,10 @@ static int native_system_agent_check_in(struct system_agent *agent,
 typedef int (*native_create_instance_f)(const void *mod_cfg, uint32_t instance_id, void **mod_ptr);
 
 
-void *native_system_agent_start(uint32_t entry_point, uint32_t module_id, uint32_t instance_id,
-				uint32_t core_id, uint32_t log_handle, void *mod_cfg)
+int native_system_agent_start(uint32_t entry_point, uint32_t module_id, uint32_t instance_id,
+			      uint32_t core_id, uint32_t log_handle, void *mod_cfg,
+			      const struct module_interface **interface,
+			      struct module_instance **instance)
 {
 	struct native_system_agent agent;
 	int ret;
@@ -59,5 +61,7 @@ void *native_system_agent_start(uint32_t entry_point, uint32_t module_id, uint32
 	native_create_instance_f ci = (native_create_instance_f)entry_point;
 
 	ret = ci(mod_cfg, instance_id, &system_agent_p);
-	return system_agent_p;
+	*interface = (const struct module_interface *)system_agent_p;
+	*instance = agent.mod_instance;
+	return ret;
 }

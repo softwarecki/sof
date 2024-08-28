@@ -10,6 +10,7 @@
 
 #include <processing_module_factory_interface.h>
 #include <system_service.h>
+#include <sof/audio/module_adapter/module/instance.h>
 
 namespace intel_adsp
 {
@@ -72,8 +73,9 @@ namespace system
 #ifdef __cplusplus
 extern "C" {
 #endif
-void *system_agent_start(uint32_t entry_point, uint32_t module_id, uint32_t instance_id,
-			 uint32_t core_id, uint32_t log_handle, void *mod_cfg);
+int system_agent_start(uint32_t entry_point, uint32_t module_id, uint32_t instance_id,
+		       uint32_t core_id, uint32_t log_handle, void* mod_cfg,
+		       void **adapter, struct module_instance **instance);
 #ifdef __cplusplus
 }
 #endif
