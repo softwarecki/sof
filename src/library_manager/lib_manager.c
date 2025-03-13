@@ -143,7 +143,7 @@ static int lib_manager_load_data_from_storage(void __sparse_cache *vma, void *s_
 
 	dcache_writeback_region(vma, size);
 
-	return sys_mm_drv_update_region_flags((__sparse_force void *)vma, size, flags);
+	return sys_mm_drv_update_region_flags((__sparse_force void *)vma, size, flags | K_MEM_PERM_USER);
 }
 
 static int lib_manager_load_module(const uint32_t module_id, const struct sof_man_module *const mod)
@@ -308,7 +308,7 @@ static int lib_manager_allocate_module_instance(uint32_t instance_id, uint32_t i
 	 * Map bss memory and clear it.
 	 */
 	if (sys_mm_drv_map_region((__sparse_force void *)va_base, POINTER_TO_UINT(NULL),
-				  bss_size, SYS_MM_MEM_PERM_RW) < 0)
+				  bss_size, SYS_MM_MEM_PERM_RW | K_MEM_PERM_USER) < 0)
 		return -ENOMEM;
 
 	memset((__sparse_force void *)va_base, 0, bss_size);

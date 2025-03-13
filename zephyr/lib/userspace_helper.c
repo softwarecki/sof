@@ -29,6 +29,8 @@
 
 K_APPMEM_PARTITION_DEFINE(common_partition);
 
+void arch_mem_map(void *virt, uintptr_t phys, size_t size, uint32_t flags);
+
 struct sys_heap *drv_heap_init(void)
 {
 	struct sys_heap *drv_heap = rballoc(SOF_MEM_FLAG_USER, sizeof(struct sys_heap));
@@ -43,6 +45,9 @@ struct sys_heap *drv_heap_init(void)
 		return NULL;
 	}
 
+	arch_mem_map(mem, (uintptr_t)mem, DRV_HEAP_SIZE, K_MEM_PERM_USER | K_MEM_PERM_RW);
+	arch_mem_map(sys_cache_uncached_ptr_get(mem), (uintptr_t)sys_cache_uncached_ptr_get(mem),
+		     DRV_HEAP_SIZE, K_MEM_PERM_USER | K_MEM_PERM_RW);
 	sys_heap_init(drv_heap, mem, DRV_HEAP_SIZE);
 	drv_heap->init_mem = mem;
 	drv_heap->init_bytes = DRV_HEAP_SIZE;
@@ -151,6 +156,8 @@ int user_memory_init_shared(k_tid_t thread_id, struct processing_module *mod)
 	ret = k_mem_domain_add_partition(comp_dom, &common_partition);
 	if (ret < 0)
 		return ret;
+	arch_mem_map((void*)common_partition.start, (uintptr_t)common_partition.start,
+		     common_partition.size, K_MEM_PERM_USER | K_MEM_PERM_RW);
 
 	return k_mem_domain_add_thread(comp_dom, thread_id);
 }

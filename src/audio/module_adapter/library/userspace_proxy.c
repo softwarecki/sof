@@ -38,6 +38,8 @@ DECLARE_TR_CTX(modules_user_tr, SOF_UUID(modules_user_uuid), LOG_LEVEL_INFO);
 K_APPMEM_PARTITION_DEFINE(ipc_partition);
 #define MAX_PARAM_SIZE	0x200
 
+void arch_mem_map(void *virt, uintptr_t phys, size_t size, uint32_t flags);
+
 struct user_worker_data {
 	struct k_msgq *ipc_in_msg_q;		/* pointer to input message queue	*/
 	struct k_msgq *ipc_out_msg_q;		/* pointer to output message queue	*/
@@ -432,6 +434,8 @@ static int userspace_proxy_memory_init(struct userspace_context *user,
 	parts[2].start = addr_aligned;
 	parts[2].size = size_aligned;
 	parts[2].attr = K_MEM_PARTITION_P_RW_U_RW;
+	
+	arch_mem_map((void*)ipc_partition.start, (uintptr_t)ipc_partition.start, ipc_partition.size, K_MEM_PERM_USER | K_MEM_PERM_RW);
 
 	return k_mem_domain_init(user->comp_dom, ARRAY_SIZE(parts_ptr), parts_ptr);
 }
