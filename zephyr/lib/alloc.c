@@ -544,6 +544,7 @@ void *rballoc_align(uint32_t flags, size_t bytes,
 	return (__sparse_force void *)heap_alloc_aligned_cached(heap, align, bytes);
 }
 EXPORT_SYMBOL(rballoc_align);
+void arch_mem_map(void *virt, uintptr_t phys, size_t size, uint32_t flags);
 
 /*
  * Free's memory allocated by above alloc calls.
@@ -584,6 +585,8 @@ static int heap_init(void)
 
 #if CONFIG_USERSPACE
 	sys_heap_init(&sof_shd_heap.heap, shd_heapmem, SHARED_HEAP_MEM_SIZE);
+	arch_mem_map(&shd_heapmem, (uintptr_t)&shd_heapmem, SHARED_HEAP_MEM_SIZE,
+		     K_MEM_PERM_USER | K_MEM_PERM_RW);
 #endif
 
 #if CONFIG_L3_HEAP
