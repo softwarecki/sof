@@ -231,6 +231,19 @@ static inline void ipc4_notification_watchdog_init(struct ipc4_watchdog_timeout_
 }
 
 /**
+ * \brief This notification is sent by the mixer on stream underrun detection. The frequency of
+ * sending this notification by Mixer depends on the MixIn settings.
+ */
+struct ipc4_mixer_underrun_event_data {
+	/* Indicates EndOfStream */
+	uint32_t eos_flag;
+	/* Data processed by module (in bytes) */
+	uint32_t data_mixed;
+	/* Expected data to be processed (in bytes) */
+	uint32_t expected_data_mixed;
+};
+
+/**
  * \brief Input data payload is reserved field in parent technical spec which can be easily
  * extendable if needed by specific resource event types in the future. For backward compatibility
  * the size of this structure is 6 dw.
@@ -238,6 +251,8 @@ static inline void ipc4_notification_watchdog_init(struct ipc4_watchdog_timeout_
 union ipc4_resource_event_data {
 	/* Raw data */
 	uint32_t dws[6];
+	/* Mixer Underrun Detected Data (res type = PIPELINE) */
+	struct ipc4_mixer_underrun_event_data mixer_underrun;
 };
 
 struct ipc4_resource_event_data_notification {
@@ -256,5 +271,13 @@ struct ipc4_resource_event_data_notification {
 } __packed __aligned(8);
 
 void xrun_notif_msg_init(struct ipc_msg *msg_xrun, uint32_t resource_id, uint32_t event_type);
+
+void mixer_underrun_notif_msg_init(struct ipc_msg *msg, uint32_t resource_id, uint32_t eos_flag,
+				   uint32_t data_mixed, uint32_t expected_data_mixed);
+
+static inline void mixer_end_of_stream_notif_msg_init(struct ipc_msg *msg, uint32_t resource_id)
+{
+	mixer_underrun_notif_msg_init(msg, resource_id, 1, 0, 0);
+}
 
 #endif /* __IPC4_NOTIFICATION_H__ */
