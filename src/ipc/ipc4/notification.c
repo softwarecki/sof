@@ -33,3 +33,19 @@ void xrun_notif_msg_init(struct ipc_msg *msg_xrun, uint32_t resource_id, uint32_
 	notif_data->resource_type = SOF_IPC4_GATEWAY;
 }
 #endif
+
+void mixer_underrun_notif_msg_init(struct ipc_msg *msg, uint32_t resource_id, uint32_t eos_flag,
+				   uint32_t data_mixed, uint32_t expected_data_mixed)
+{
+	struct ipc4_resource_event_data_notification *notif_data = msg->tx_data;
+	union ipc4_notification_header header;
+	resource_notif_header_init(msg);
+
+	notif_data->resource_id = resource_id;
+	notif_data->event_type = SOF_IPC4_MIXER_UNDERRUN_DETECTED;
+	notif_data->resource_type = SOF_IPC4_PIPELINE;
+	memset(&notif_data->event_data, 0, sizeof(notif_data->event_data));
+	notif_data->event_data.mixer_underrun.eos_flag = eos_flag;
+	notif_data->event_data.mixer_underrun.data_mixed = data_mixed;
+	notif_data->event_data.mixer_underrun.expected_data_mixed = expected_data_mixed;
+}
