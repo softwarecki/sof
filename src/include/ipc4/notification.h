@@ -37,7 +37,7 @@ enum sof_ipc4_notification_type {
 	SOF_IPC4_FW_AUD_CLASS_RESULT		= 9,
 	SOF_IPC4_EXCEPTION_CAUGHT		= 10,
 	SOF_IPC4_MODULE_NOTIFICATION		= 12,
-	SOF_IPC4_UAOL_RSVD_		= 13,
+	SOF_IPC4_UAOL_RSVD_			= 13,
 	SOF_IPC4_PROBE_DATA_AVAILABLE		= 14,
 	SOF_IPC4_WATCHDOG_TIMEOUT		= 15,
 	SOF_IPC4_MANAGEMENT_SERVICE		= 16,
@@ -116,8 +116,6 @@ enum sof_ipc4_resource_type {
 #define SOF_IPC4_NOTIF_HEADER(notif_type) \
 		((notif_type) << (SOF_IPC4_GLB_NOTIFY_TYPE_SHIFT) | \
 		((SOF_IPC4_GLB_NOTIFICATION) << (SOF_IPC4_GLB_NOTIFY_MSG_TYPE_SHIFT)))
-
-#endif
 
 /**
  * \brief IPC MAJOR 4 notification header. All IPC4 notifications use this header.
@@ -255,3 +253,5 @@ struct ipc4_resource_event_data_notification {
 	/* Detailed event data */
 	union ipc4_resource_event_data event_data;
 } __packed __aligned(8);
+
+#endif /* __IPC4_NOTIFICATION_H__ */
