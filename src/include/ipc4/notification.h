@@ -25,6 +25,7 @@
 
 #include <stdint.h>
 #include <ipc/header.h>
+#include <sof/ipc/msg.h>
 #include <sof/compiler_attributes.h>
 
 /* ipc4 notification msg */
@@ -253,5 +254,7 @@ struct ipc4_resource_event_data_notification {
 	/* Detailed event data */
 	union ipc4_resource_event_data event_data;
 } __packed __aligned(8);
+
+void xrun_notif_msg_init(struct ipc_msg *msg_xrun, uint32_t resource_id, uint32_t event_type);
 
 #endif /* __IPC4_NOTIFICATION_H__ */
