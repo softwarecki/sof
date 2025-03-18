@@ -244,6 +244,19 @@ struct ipc4_mixer_underrun_event_data {
 };
 
 /**
+ * \brief This notification is sent by a shim of module instance on error raised by data processing
+ * function.
+ *
+ * In case of 3rd party IP error_code is set to its native error code returned by the 3rd party
+ * library.
+ */
+struct ipc4_process_data_error_event_data
+{
+	/* Error code returned by data processing function */
+	uint32_t error_code;
+};
+
+/**
  * \brief Input data payload is reserved field in parent technical spec which can be easily
  * extendable if needed by specific resource event types in the future. For backward compatibility
  * the size of this structure is 6 dw.
@@ -253,6 +266,8 @@ union ipc4_resource_event_data {
 	uint32_t dws[6];
 	/* Mixer Underrun Detected Data (res type = PIPELINE) */
 	struct ipc4_mixer_underrun_event_data mixer_underrun;
+	/* Process Data Error Data (res type = MODULE_INSTANCE) */
+	struct ipc4_process_data_error_event_data process_data_error;
 };
 
 struct ipc4_resource_event_data_notification {
@@ -279,5 +294,8 @@ static inline void mixer_end_of_stream_notif_msg_init(struct ipc_msg *msg, uint3
 {
 	mixer_underrun_notif_msg_init(msg, resource_id, 1, 0, 0);
 }
+
+void process_data_error_notif_msg_init(struct ipc_msg *msg, uint32_t resource_id,
+				       uint32_t error_code);
 
 #endif /* __IPC4_NOTIFICATION_H__ */
