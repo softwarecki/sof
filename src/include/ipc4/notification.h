@@ -25,6 +25,7 @@
 
 #include <stdint.h>
 #include <ipc/header.h>
+#include <sof/ipc/msg.h>
 #include <sof/compiler_attributes.h>
 
 /* ipc4 notification msg */
@@ -37,7 +38,7 @@ enum sof_ipc4_notification_type {
 	SOF_IPC4_FW_AUD_CLASS_RESULT		= 9,
 	SOF_IPC4_EXCEPTION_CAUGHT		= 10,
 	SOF_IPC4_MODULE_NOTIFICATION		= 12,
-	SOF_IPC4_UAOL_RSVD_			= 13,
+	SOF_IPC4_UAOL_RSVD_		= 13,
 	SOF_IPC4_PROBE_DATA_AVAILABLE		= 14,
 	SOF_IPC4_WATCHDOG_TIMEOUT		= 15,
 	SOF_IPC4_MANAGEMENT_SERVICE		= 16,
@@ -253,5 +254,7 @@ struct ipc4_resource_event_data_notification {
 	/* Detailed event data */
 	union ipc4_resource_event_data event_data;
 } __packed __aligned(8);
+
+void xrun_notif_msg_init(struct ipc_msg *msg_xrun, uint32_t resource_id, uint32_t event_type);
 
 #endif /* __IPC4_NOTIFICATION_H__ */
