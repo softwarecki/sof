@@ -272,6 +272,8 @@ struct ipc4_resource_event_data_notification {
 
 #define IPC4_RESOURCE_EVENT_SIZE	sizeof(struct ipc4_resource_event_data_notification)
 
+void xrun_notif_msg_init(struct ipc_msg *msg_xrun, uint32_t resource_id, uint32_t event_type);
+
 void process_data_error_notif_msg_init(struct ipc_msg *msg, uint32_t resource_id,
 				       uint32_t error_code);
 
