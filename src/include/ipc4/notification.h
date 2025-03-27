@@ -293,6 +293,11 @@ static inline void mixer_end_of_stream_notif_msg_init(struct ipc_msg *msg, uint3
 	mixer_underrun_notif_msg_init(msg, resource_id, 1, 0, 0);
 }
 
+void copier_gateway_underrun_notif_msg_init(struct ipc_msg *msg, uint32_t pipeline_id);
+void copier_gateway_overrun_notif_msg_init(struct ipc_msg *msg, uint32_t pipeline_id);
+void gateway_underrun_notif_msg_init(struct ipc_msg *msg, uint32_t resource_id);
+void gateway_overrun_notif_msg_init(struct ipc_msg *msg, uint32_t resource_id);
+
 void process_data_error_notif_msg_init(struct ipc_msg *msg, uint32_t resource_id,
 				       uint32_t error_code);
 
