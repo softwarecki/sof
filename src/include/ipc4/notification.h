@@ -285,6 +285,8 @@ struct ipc4_resource_event_data_notification {
 	union ipc4_resource_event_data event_data;
 } __packed __aligned(8);
 
+#define IPC4_RESOURCE_EVENT_SIZE	sizeof(struct ipc4_resource_event_data_notification)
+
 void mixer_underrun_notif_msg_init(struct ipc_msg *msg, uint32_t resource_id, uint32_t eos_flag,
 				   uint32_t data_mixed, uint32_t expected_data_mixed);
 
