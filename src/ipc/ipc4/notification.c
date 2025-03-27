@@ -32,7 +32,6 @@ void mixer_underrun_notif_msg_init(struct ipc_msg *msg, uint32_t resource_id, ui
 	notif_data->resource_id = resource_id;
 	notif_data->event_type = SOF_IPC4_MIXER_UNDERRUN_DETECTED;
 	notif_data->resource_type = SOF_IPC4_PIPELINE;
-	memset(&notif_data->event_data, 0, sizeof(notif_data->event_data));
 	notif_data->event_data.mixer_underrun.eos_flag = eos_flag;
 	notif_data->event_data.mixer_underrun.data_mixed = data_mixed;
 	notif_data->event_data.mixer_underrun.expected_data_mixed = expected_data_mixed;
