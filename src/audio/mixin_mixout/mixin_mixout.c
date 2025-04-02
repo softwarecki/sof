@@ -79,6 +79,8 @@ struct mixin_data {
 #if CONFIG_XRUN_NOTIFICATIONS_ENABLE
 	uint32_t last_reported_underrun;
 	uint32_t underrun_notification_period;
+	uint32_t eos_delay;
+	bool eos_delay_configured;
 #endif
 };
 
@@ -247,20 +249,82 @@ static void silence(struct cir_buf_ptr *stream, uint32_t start_offset,
 }
 
 #if CONFIG_XRUN_NOTIFICATIONS_ENABLE
-static void mixin_check_notify_underrun(struct comp_dev *dev, struct mixin_data *mixin_data,
-					size_t source_avail_frames, size_t sinks_free_frames)
+static bool mixin_check_eos(const struct pipeline *pipeline)
 {
-	mixin_data->last_reported_underrun++;
-	if (source_avail_frames < sinks_free_frames &&
-	    mixin_data->last_reported_underrun >= mixin_data->underrun_notification_period) {
-		mixin_data->last_reported_underrun = 0;
+#if 0
+	assert(get_prid() == MASTER_CORE_ID);
 
-		struct ipc_msg *notify = ipc_notification_pool_get(IPC4_RESOURCE_EVENT_SIZE);
-		if (!notify)
-			return;
-		mixer_underrun_notif_msg_init(notify, dev->ipc_config.id, false,
-					      source_avail_frames, sinks_free_frames);
-		ipc_msg_send(notify, notify->tx_data, false);
+	//
+	if (GetState() != PPL_EOS)
+	{
+#pragma frequency_hint NEVER
+		REPORT_ERROR(ADSP_PPL_CHECK_EOS_INVALID_STATE);
+		return false;
+	}
+	struct comp_dev *source_comp;
+
+	Gateway* gateway = GetGateway(Gateway::SOURCE);
+	if (gateway == NULL)
+	{
+#pragma frequency_hint NEVER
+		REPORT_ERROR(ADSP_PPL_CHECK_EOS_WITHOUT_GATEWAY_SOUCE);
+		return false;
+	}
+
+	Source* source = reinterpret_cast<GatewaySource*>(gateway);
+	assert(source != NULL);
+
+	if (source->GetDataSize() != 0)
+	{
+#pragma frequency_hint NEVER
+		REPORT_ERROR(ADSP_PPL_CHECK_EOS_GTW_SOURCE_NOT_EMPTY);
+		return false;
+	}
+
+	for (const QueueList::Item* it = queues_.GetHead(); it != NULL; it = it->next)
+	{
+		if (it->elem->GetDataSize() != 0)
+		{
+			REPORT_ERROR(ADSP_PPL_CHECK_EOS_INTERNAL_QUEUE_NOT_EMPTY);
+			return false;
+		}
+	}
+
+#endif
+	return true;
+}
+
+static void mixin_check_notify_underrun(struct comp_dev *dev, struct mixin_data *mixin_data,
+					size_t source_avail, size_t sinks_free)
+{
+	const bool eos_detected = dev->pipeline->expect_eos && mixin_check_eos(dev->pipeline);
+
+	mixin_data->last_reported_underrun++;
+
+	if (source_avail < sinks_free) {
+		// TODO: Tutaj brakuje sprawdzenia czy brak danych nie wynika z oczekiwania na modul DP
+
+		if (eos_detected) {
+			if (mixin_data->eos_delay_configured)
+				mixin_data->eos_delay--;
+			else {
+				mixin_data->eos_delay = 100;// TODO: Pipe latency calculation
+				mixin_data->eos_delay_configured = true;
+			}
+		}
+
+		if ((!eos_detected && mixin_data->last_reported_underrun >=
+		    mixin_data->underrun_notification_period) ||
+		    (eos_detected && mixin_data->eos_delay == 0)) {
+			mixin_data->last_reported_underrun = 0;
+
+			struct ipc_msg *notify = ipc_notification_pool_get(IPC4_RESOURCE_EVENT_SIZE);
+			if (!notify)
+				return;
+			mixer_underrun_notif_msg_init(notify, dev->ipc_config.id, eos_detected,
+						      source_avail, sinks_free);
+			ipc_msg_send(notify, notify->tx_data, false);
+		}
 	}
 }
 #endif
@@ -385,7 +449,13 @@ static int mixin_process(struct processing_module *mod,
 		return 0;
 
 #if CONFIG_XRUN_NOTIFICATIONS_ENABLE
-	mixin_check_notify_underrun(dev, mixin_data, source_avail_frames, sinks_free_frames);
+	size_t frame_bytes = source_get_frame_bytes(sources[0]);
+	comp_err(dev, "%u %u %u", (uint32_t)source_avail_frames, (uint32_t)sinks_free_frames, (uint32_t)dev->frames);
+
+	size_t min_frames = MIN(dev->frames, sinks_free_frames);
+	mixin_check_notify_underrun(dev, mixin_data,
+				    source_avail_frames,// * frame_bytes,
+				    min_frames);// *frame_bytes);
 #endif
 
 	if (source_avail_frames > 0) {
@@ -689,6 +759,7 @@ static int mixin_prepare(struct processing_module *mod,
 	int ret;
 
 	comp_info(dev, "mixin_prepare()");
+	md->eos_delay_configured = false;
 
 	ret = mixin_params(mod);
 	if (ret < 0)
