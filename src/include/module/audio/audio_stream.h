@@ -15,7 +15,8 @@
 
 enum sof_audio_stream_state {
 	STREAM_STATE_INITIAL,		/* Initial state, hw params not configured. */
-	STREAM_STATE_READY		/* Stream ready, hw params configured */
+	STREAM_STATE_READY,		/* Stream ready, hw params configured */
+	STREAM_STATE_END_OF_STREAM	/* Expect End Of Stream */
 };
 
 /**
