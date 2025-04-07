@@ -16,6 +16,7 @@
 #include <sof/audio/module_adapter/module/generic.h>
 #include <sof/audio/sink_api.h>
 #include <sof/audio/source_api.h>
+#include <sof/audio/sink_source_utils.h>
 #include <sof/audio/audio_buffer.h>
 #include <sof/audio/pipeline.h>
 #include <sof/schedule/ll_schedule_domain.h>
@@ -1092,11 +1093,48 @@ out:
 	return ret;
 }
 
+/* Produces silence on the input of a dp module when we expect the end of the stream.
+ * This will allow the buffered data inside the dp module to be reprocessed
+ */
+int dp_module_eos_handler(struct processing_module *mod)
+{
+	struct comp_dev *dev = mod->dev;
+	struct comp_buffer *buffer;
+	int ret = 0;
+
+	if (!dev->pipeline->expect_eos)
+		return 0;
+
+	comp_dev_for_each_producer(dev, buffer) {
+		/* If pipeline expect end of the stream, fill missing input data with 
+		 * silence to allow DP module to process the remaining data.
+		 */
+		struct sof_source *mod_data_source = audio_buffer_get_source(&buffer->audio_buffer);
+		struct sof_source *mod_data_source2 = &buffer->audio_buffer._source_api;
+		struct sof_sink *previous_mod_data_sink =
+			audio_buffer_get_sink(&buffer->audio_buffer);
+
+		if (sink_get_pipeline_id(previous_mod_data_sink) != dev->pipeline->pipeline_id)
+			continue;
+
+		size_t min_avail = source_get_min_available(mod_data_source);
+		size_t avail = source_get_data_available(mod_data_source);
+		size_t avail2 = source_get_data_available(mod_data_source2);
+
+		if ((avail + avail2) < min_avail) {
+			//comp_err(dev, "avail %u + %u < %u", (uint32_t)avail, (uint32_t)avail2, (uint32_t)min_avail);
+			ret = sink_fill_with_silence(previous_mod_data_sink, min_avail - avail - avail2);
+		}
+	}
+	return ret;
+}
+
 int module_adapter_copy(struct comp_dev *dev)
 {
 	comp_dbg(dev, "module_adapter_copy(): start");
 
 	struct processing_module *mod = comp_mod(dev);
+	int ret;
 
 	if (IS_PROCESSING_MODE_AUDIO_STREAM(mod))
 		return module_adapter_audio_stream_type_copy(dev);
@@ -1105,9 +1143,12 @@ int module_adapter_copy(struct comp_dev *dev)
 		return module_adapter_raw_data_type_copy(dev);
 
 	if (IS_PROCESSING_MODE_SINK_SOURCE(mod)) {
-		if (mod->dev->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP)
+		if (mod->dev->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP) {
+			ret = dp_module_eos_handler(mod);
+			if (ret)
+				return ret;
 			return module_adapter_copy_ring_buffers(dev);
-		else
+		} else
 			return module_adapter_sink_source_copy(dev);
 
 	}
