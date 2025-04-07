@@ -231,4 +231,9 @@ static inline uint32_t source_get_pipeline_id(struct sof_source *source)
 	return source->audio_stream_params->pipeline_id;
 }
 
+static inline enum sof_audio_stream_state source_get_state(const struct sof_source *source)
+{
+	return source->audio_stream_params->state;
+}
+
 #endif /* __MODULE_AUDIO_SOURCE_API_H__ */
