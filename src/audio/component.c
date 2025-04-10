@@ -465,6 +465,36 @@ void audio_stream_copy_to_linear(const struct audio_stream *source, int ioffset,
 	}
 }
 
+static inline bool comp_check_eos(struct comp_dev *dev)
+{
+	struct comp_buffer *buffer;
+	bool stream_end = false;
+
+	if (!dev->pipeline->expect_eos || dev->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP)
+		return false;
+
+	comp_dev_for_each_producer(dev, buffer) {
+		enum sof_audio_stream_state state = audio_buffer_get_state(&buffer->audio_buffer);
+		struct sof_source *source = audio_buffer_get_source(&buffer->audio_buffer);
+
+		if (state != STREAM_STATE_END_OF_STREAM ||
+		    source_get_pipeline_id(source) != dev->pipeline->pipeline_id)
+			continue;
+
+		if (source_get_data_available(source) == 0) {
+			stream_end = true;
+			break;
+		}
+	}
+
+	if (stream_end) {
+		comp_dev_for_each_consumer(dev, buffer) {
+			audio_buffer_set_eos(&buffer->audio_buffer);
+		}
+	}
+	return stream_end;
+}
+
 /** See comp_ops::copy */
 int comp_copy(struct comp_dev *dev)
 {
@@ -498,6 +528,9 @@ int comp_copy(struct comp_dev *dev)
 #ifdef CONFIG_SOF_TELEMETRY_PERFORMANCE_MEASUREMENTS
 		const uint32_t begin_stamp = (uint32_t)telemetry_timestamp();
 #endif
+
+		if (comp_check_eos(dev))
+			return 0;
 
 		ret = dev->drv->ops.copy(dev);
 
