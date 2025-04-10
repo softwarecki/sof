@@ -16,6 +16,7 @@
 #include <sof/audio/module_adapter/module/generic.h>
 #include <sof/audio/sink_api.h>
 #include <sof/audio/source_api.h>
+#include <sof/audio/sink_source_utils.h>
 #include <sof/audio/audio_buffer.h>
 #include <sof/audio/pipeline.h>
 #include <sof/schedule/ll_schedule_domain.h>
@@ -1101,6 +1102,7 @@ int module_adapter_copy(struct comp_dev *dev)
 	comp_dbg(dev, "module_adapter_copy(): start");
 
 	struct processing_module *mod = comp_mod(dev);
+	int ret;
 
 	if (IS_PROCESSING_MODE_AUDIO_STREAM(mod))
 		return module_adapter_audio_stream_type_copy(dev);
@@ -1109,9 +1111,9 @@ int module_adapter_copy(struct comp_dev *dev)
 		return module_adapter_raw_data_type_copy(dev);
 
 	if (IS_PROCESSING_MODE_SINK_SOURCE(mod)) {
-		if (mod->dev->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP)
+		if (mod->dev->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP) {
 			return module_adapter_copy_ring_buffers(dev);
-		else
+		} else
 			return module_adapter_sink_source_copy(dev);
 
 	}
