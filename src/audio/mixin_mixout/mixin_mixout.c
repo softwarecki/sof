@@ -249,66 +249,24 @@ static void silence(struct cir_buf_ptr *stream, uint32_t start_offset,
 }
 
 #if CONFIG_XRUN_NOTIFICATIONS_ENABLE
-static bool mixin_check_eos(const struct pipeline *pipeline)
-{
-#if 0
-	assert(get_prid() == MASTER_CORE_ID);
-
-	//
-	if (GetState() != PPL_EOS)
-	{
-#pragma frequency_hint NEVER
-		REPORT_ERROR(ADSP_PPL_CHECK_EOS_INVALID_STATE);
-		return false;
-	}
-	struct comp_dev *source_comp;
-
-	Gateway* gateway = GetGateway(Gateway::SOURCE);
-	if (gateway == NULL)
-	{
-#pragma frequency_hint NEVER
-		REPORT_ERROR(ADSP_PPL_CHECK_EOS_WITHOUT_GATEWAY_SOUCE);
-		return false;
-	}
-
-	Source* source = reinterpret_cast<GatewaySource*>(gateway);
-	assert(source != NULL);
-
-	if (source->GetDataSize() != 0)
-	{
-#pragma frequency_hint NEVER
-		REPORT_ERROR(ADSP_PPL_CHECK_EOS_GTW_SOURCE_NOT_EMPTY);
-		return false;
-	}
-
-	for (const QueueList::Item* it = queues_.GetHead(); it != NULL; it = it->next)
-	{
-		if (it->elem->GetDataSize() != 0)
-		{
-			REPORT_ERROR(ADSP_PPL_CHECK_EOS_INTERNAL_QUEUE_NOT_EMPTY);
-			return false;
-		}
-	}
-
-#endif
-	return true;
-}
-
 static void mixin_check_notify_underrun(struct comp_dev *dev, struct mixin_data *mixin_data,
+					enum sof_audio_stream_state state,
 					size_t source_avail, size_t sinks_free)
 {
-	const bool eos_detected = dev->pipeline->expect_eos && mixin_check_eos(dev->pipeline);
+	const bool eos_detected = state == STREAM_STATE_END_OF_STREAM_FLUSH ||
+				  state == STREAM_STATE_END_OF_STREAM;
 
 	mixin_data->last_reported_underrun++;
 
-	if (source_avail < sinks_free) {
+	if (!source_avail || eos_detected) {
 		// TODO: Tutaj brakuje sprawdzenia czy brak danych nie wynika z oczekiwania na modul DP
 
 		if (eos_detected) {
 			if (mixin_data->eos_delay_configured)
 				mixin_data->eos_delay--;
 			else {
-				mixin_data->eos_delay = 100;// TODO: Pipe latency calculation
+				pipeline_get_dai_comp_latency(dev->pipeline->pipeline_id,
+							      &mixin_data->eos_delay);
 				mixin_data->eos_delay_configured = true;
 			}
 		}
@@ -450,12 +408,10 @@ static int mixin_process(struct processing_module *mod,
 
 #if CONFIG_XRUN_NOTIFICATIONS_ENABLE
 	size_t frame_bytes = source_get_frame_bytes(sources[0]);
-	comp_err(dev, "%u %u %u", (uint32_t)source_avail_frames, (uint32_t)sinks_free_frames, (uint32_t)dev->frames);
-
 	size_t min_frames = MIN(dev->frames, sinks_free_frames);
-	mixin_check_notify_underrun(dev, mixin_data,
-				    source_avail_frames,// * frame_bytes,
-				    min_frames);// *frame_bytes);
+	mixin_check_notify_underrun(dev, mixin_data, source_get_state(sources[0]),
+				    source_avail_frames * frame_bytes,
+				    min_frames * frame_bytes);
 #endif
 
 	if (source_avail_frames > 0) {
