@@ -90,7 +90,7 @@ pipeline_should_report_enodata_on_trigger(struct comp_dev *rsrc,
 	return false;
 }
 
-static void pipeline_comp_copy_error_notify(const struct comp_dev *component, int err)
+void pipeline_comp_copy_error_notify(const struct comp_dev *component, int err)
 {
 	struct ipc_msg *notify = ipc_notification_pool_get(IPC4_RESOURCE_EVENT_SIZE);
 	if (!notify)
