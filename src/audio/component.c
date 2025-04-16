@@ -467,8 +467,6 @@ void audio_stream_copy_to_linear(const struct audio_stream *source, int ioffset,
 
 static inline bool comp_check_eos(struct comp_dev *dev)
 {
-	struct comp_buffer *buffer;
-	bool stream_end = false;
 	enum sof_audio_stream_state sink_state = STREAM_STATE_INITIAL;
 	struct comp_buffer *buffer;
 
@@ -476,7 +474,6 @@ static inline bool comp_check_eos(struct comp_dev *dev)
 		return false;
 
 	comp_dev_for_each_producer(dev, buffer) {
-		enum sof_audio_stream_state state = audio_buffer_get_state(&buffer->audio_buffer);
 		struct sof_source *source = audio_buffer_get_source(&buffer->audio_buffer);
 		enum sof_audio_stream_state state = source_get_state(source);
 
