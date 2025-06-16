@@ -21,9 +21,6 @@
 #if CONFIG_VIRTUAL_HEAP
 #include <sof/lib/regions_mm.h>
 
-struct vmh_heap *virtual_buffers_heap[CONFIG_MP_MAX_NUM_CPUS];
-struct k_spinlock vmh_lock;
-
 #undef	HEAPMEM_SIZE
 /* Buffers are allocated from virtual space so we can safely reduce the heap size.
  */
@@ -122,16 +119,43 @@ extern char _end[], _heap_sentry[];
 
 #endif
 
-static struct k_heap sof_heap;
+struct sof_heap_def;
+struct sof_heap_ops {
+	bool (*is_heap_pointer)(struct k_heap *h, void *ptr);
+
+	void (*init_struct)(struct k_heap *h);
+	void *(*aligned_alloc_cached)(struct sof_heap_def *sof_heap, size_t align, size_t bytes, k_timeout_t timeout);
+
+	void (*init)(struct k_heap *h, void *mem, size_t bytes);
+	void *(*aligned_alloc)(struct k_heap *h, size_t align, size_t bytes, k_timeout_t timeout);
+
+	void *(*alloc)(struct k_heap *h, size_t bytes, k_timeout_t timeout);
+	void *(*calloc)(struct k_heap *h, size_t num, size_t size, k_timeout_t timeout);
+	void *(*realloc)(struct k_heap *h, void *ptr, size_t bytes, k_timeout_t timeout);
+	void (*free)(struct k_heap *h, void *mem);
+};
+
+struct sof_heap_def {
+	struct k_heap *heap;
+	uint32_t caps; /* Bitmask of supported caps */
+	uint32_t zones; /* Bitmask of supported zones */
+	const struct sof_heap_ops *ops;
+};
+
+
+
+
+static struct k_heap sof_heap = {
+	.heap = {
+		.init_mem = heapmem,
+		.init_bytes = HEAPMEM_SIZE - SHD_HEAP_MEM_SIZE,
+	},
+};
 
 #if CONFIG_L3_HEAP
 static struct k_heap l3_heap;
 
-/**
- * Returns the start of L3 memory heap.
- * @return Pointer to the L3 memory location which can be used for L3 heap.
- */
-static inline uintptr_t get_l3_heap_start(void)
+static void l3_init_struct(struct k_heap *h)
 {
 	/*
 	 * TODO: parse the actual offset using:
@@ -140,38 +164,28 @@ static inline uintptr_t get_l3_heap_start(void)
 	 * - main_fw_load_offset
 	 * - main fw size in manifest
 	 */
-	return (uintptr_t)(ROUND_UP(IMR_L3_HEAP_BASE, L3_MEM_PAGE_SIZE));
-}
-
-/**
- * Returns the size of L3 memory heap.
- * @return Size of the L3 memory region which can be used for L3 heap.
- */
-static inline size_t get_l3_heap_size(void)
-{
+	h->heap.init_mem = UINT_TO_POINTER(ROUND_UP(IMR_L3_HEAP_BASE, L3_MEM_PAGE_SIZE));
 	 /*
 	  * Calculate the IMR heap size using:
 	  * - total IMR size
 	  * - IMR base address
 	  * - actual IMR heap start
 	  */
-	return ROUND_DOWN(IMR_L3_HEAP_SIZE, L3_MEM_PAGE_SIZE);
+	h->heap.init_bytes = ROUND_DOWN(IMR_L3_HEAP_SIZE, L3_MEM_PAGE_SIZE);
 }
 
 /**
  * Checks whether pointer is from L3 heap memory range.
+ * @param h Heap structure pointer
  * @param ptr Pointer to memory being checked.
  * @return True if pointer falls into L3 heap region, false otherwise.
  */
-static bool is_l3_heap_pointer(void *ptr)
+static bool is_l3_heap_pointer(struct k_heap *h, void *ptr)
 {
-	uintptr_t l3_heap_start = get_l3_heap_start();
-	uintptr_t l3_heap_end = l3_heap_start + get_l3_heap_size();
+	const uintptr_t l3_heap_start = POINTER_TO_UINT(h->heap.init_mem);
+	const uintptr_t l3_heap_end = l3_heap_start + h->heap.init_bytes;
 
-	if ((POINTER_TO_UINT(ptr) >= l3_heap_start) && (POINTER_TO_UINT(ptr) < l3_heap_end))
-		return true;
-
-	return false;
+	return (POINTER_TO_UINT(ptr) >= l3_heap_start) && (POINTER_TO_UINT(ptr) < l3_heap_end);
 }
 
 static void *l3_heap_alloc_aligned(struct k_heap *h, size_t min_align, size_t bytes)
@@ -201,6 +215,7 @@ static void *l3_heap_alloc_aligned(struct k_heap *h, size_t min_align, size_t by
 
 static void l3_heap_free(struct k_heap *h, void *mem)
 {
+	// TODO zmienic
 	if (!cpu_is_primary(arch_proc_id())) {
 		tr_err(&zephyr_tr, "L3_HEAP available only for primary core!");
 		return;
@@ -214,22 +229,17 @@ static void l3_heap_free(struct k_heap *h, void *mem)
 
 #endif
 
+
+
+
+
+
 #if CONFIG_VIRTUAL_HEAP
-static void *virtual_heap_alloc(struct vmh_heap *heap, uint32_t flags, uint32_t caps, size_t bytes,
-				uint32_t align)
-{
-	void *mem = vmh_alloc(heap, bytes);
+static struct k_heap virtual_heap;
+struct vmh_heap *virtual_buffers_heap[CONFIG_MP_MAX_NUM_CPUS];
 
-	if (!mem)
-		return NULL;
 
-	assert(IS_ALIGNED(mem, align));
 
-	if (flags & SOF_MEM_FLAG_COHERENT)
-		return sys_cache_uncached_ptr_get((__sparse_force void __sparse_cache *)mem);
-
-	return mem;
-}
 
 /**
  * Checks whether pointer is from virtual memory range.
@@ -249,20 +259,6 @@ static bool is_virtual_heap_pointer(void *ptr)
 		(POINTER_TO_UINT(ptr) < virtual_heap_end));
 }
 
-static void virtual_heap_free(void *ptr)
-{
-	struct vmh_heap *const heap = virtual_buffers_heap[cpu_get_id()];
-	int ret;
-
-	ptr = (__sparse_force void *)sys_cache_cached_ptr_get(ptr);
-
-	ret = vmh_free(heap, ptr);
-	if (ret) {
-		tr_err(&zephyr_tr, "Unable to free %p! %d", ptr, ret);
-		k_panic();
-	}
-}
-
 static const struct vmh_heap_config static_hp_buffers = {
 	{
 		{ 128, 32},
@@ -277,11 +273,46 @@ static const struct vmh_heap_config static_hp_buffers = {
 	},
 };
 
-static int virtual_heap_init(void)
+static void *virtual_heap_alloc(struct vmh_heap *heap, uint32_t flags, uint32_t caps, size_t bytes,
+				uint32_t align)
+{
+	void *mem = vmh_alloc(heap, bytes);
+
+	if (!mem)
+		return NULL;
+
+	assert(IS_ALIGNED(mem, align));
+
+	if (flags & SOF_MEM_FLAG_COHERENT)
+		return sys_cache_uncached_ptr_get((__sparse_force void __sparse_cache *)mem);
+
+	return mem;
+}
+
+static void virtual_heap_free(struct k_heap *h, void *ptr)
+{
+	struct vmh_heap *const heap = virtual_buffers_heap[cpu_get_id()];
+	int ret;
+
+	ptr = (__sparse_force void *)sys_cache_cached_ptr_get(ptr);
+
+	ret = vmh_free(heap, ptr);
+	if (ret) {
+		tr_err(&zephyr_tr, "Unable to free %p! %d", ptr, ret);
+		k_panic();
+	}
+}
+
+static int virtual_heap_init(struct k_heap *h, void *mem, size_t bytes)
 {
 	int core;
 
-	k_spinlock_init(&vmh_lock);
+	// TODO: Mozliwe, ze bedziemu musieli tutaj operowac na uncached
+	h->heap.init_mem = UINT_TO_POINTER(POINTER_TO_UINT(sys_cache_cached_ptr_get(&heapmem)) +
+					   HEAPMEM_SIZE;
+	h->heap.init_bytes = CONFIG_KERNEL_VM_SIZE - HEAPMEM_SIZE;
+	z_waitq_init(&h->wait_q);
+	k_spinlock_init(&h->lock);
 
 	for (core = 0; core < CONFIG_MP_MAX_NUM_CPUS; core++) {
 		struct vmh_heap *heap = vmh_init_heap(&static_hp_buffers, MEM_REG_ATTR_CORE_HEAP,
@@ -294,12 +325,10 @@ static int virtual_heap_init(void)
 
 	return 0;
 }
-
-SYS_INIT(virtual_heap_init, POST_KERNEL, 1);
-
 #endif /* CONFIG_VIRTUAL_HEAP */
 
-static void *heap_alloc_aligned(struct k_heap *h, size_t min_align, size_t bytes)
+
+static void *heap_alloc_aligned(struct k_heap *h, size_t align, size_t bytes, k_timeout_t timeout)
 {
 	k_spinlock_key_t key;
 	void *ret;
@@ -320,7 +349,7 @@ static void *heap_alloc_aligned(struct k_heap *h, size_t min_align, size_t bytes
 	return ret;
 }
 
-static void __sparse_cache *heap_alloc_aligned_cached(struct k_heap *h,
+static void __sparse_cache *heap_alloc_aligned_cached(struct sof_heap_def *sof_heap
 						      size_t min_align, size_t bytes)
 {
 	void __sparse_cache *ptr;
@@ -339,8 +368,9 @@ static void __sparse_cache *heap_alloc_aligned_cached(struct k_heap *h,
 	bytes = ALIGN_UP(bytes, min_align);
 #endif
 
-	ptr = (__sparse_force void __sparse_cache *)heap_alloc_aligned(h, min_align, bytes);
-
+	ptr = (__sparse_force void __sparse_cache *)sof_heap->ops->aligned_alloc(sof_heap->heap,
+										 min_align, bytes,
+										 K_FOREVER);
 #ifdef CONFIG_SOF_ZEPHYR_HEAP_CACHED
 	if (ptr)
 		ptr = sys_cache_cached_ptr_get((__sparse_force void *)ptr);
@@ -348,7 +378,6 @@ static void __sparse_cache *heap_alloc_aligned_cached(struct k_heap *h,
 
 	return ptr;
 }
-
 static void heap_free(struct k_heap *h, void *mem)
 {
 	k_spinlock_key_t key = k_spin_lock(&h->lock);
@@ -369,6 +398,59 @@ static void heap_free(struct k_heap *h, void *mem)
 	k_spin_unlock(&h->lock, key);
 }
 
+
+static struct sof_heap_def sof_heaps[] = {
+#if CONFIG_L3_HEAP
+	{
+		.heap = &l3_heap,
+		.caps = SOF_MEM_CAPS_L3,
+		.zone = BIT(SOF_MEM_ZONE_BUFFER),
+		.ops = &(const struct sof_heap_ops)
+		{
+			.init = virtual_heap_init,
+			.is_heap_pointer = is_l3_heap_pointer,
+			//.aligned_alloc = sys_heap_aligned_alloc,
+			//.alloc = sys_heap_alloc,
+			//.calloc = sys_heap_calloc,
+			//.realloc = sys_heap_realloc,
+			//.free = sys_heap_free,
+		},
+	},
+#endif /* CONFIG_L3_HEAP */
+#ifdef CONFIG_VIRTUAL_HEAP
+	{
+		.heap = &virtual_heap,
+		.zone = BIT(SOF_MEM_ZONE_BUFFER), /* Virtual heap is designed only for a buffers */
+		.ops = &(const struct sof_heap_ops),
+		{
+			.init_struct = l3_init_struct,
+			.init = k_heap_init,
+			.is_heap_pointer = is_l3_heap_pointer,
+			//.aligned_alloc = sys_heap_aligned_alloc,
+			//.alloc = sys_heap_alloc,
+			//.calloc = sys_heap_calloc,
+			//.realloc = sys_heap_realloc,
+			.free = virtual_heap_free,
+		},
+	},
+#endif /* CONFIG_VIRTUAL_HEAP */
+	{
+		.heap = &sof_heap,
+		.zone = BIT(SOF_MEM_ZONE_BUFFER),
+		.ops = &(const struct sof_heap_ops)
+		{
+			.init = k_heap_init,
+			.aligned_alloc = heap_alloc_aligned,
+			.aligned_alloc_cached = heap_alloc_aligned_cached,
+			//.alloc = sys_heap_alloc,
+			//.calloc = sys_heap_calloc,
+			//.realloc = sys_heap_realloc,
+			.free = heap_free,
+		},
+	},
+	{ NULL, NULL }
+};
+
 static inline bool zone_is_cached(enum mem_zone zone)
 {
 #ifdef CONFIG_SOF_ZEPHYR_HEAP_CACHED
@@ -386,7 +468,33 @@ static inline bool zone_is_cached(enum mem_zone zone)
 	return false;
 }
 
-void *rmalloc(enum mem_zone zone, uint32_t flags, uint32_t caps, size_t bytes)
+
+void *rmalloc_aligned(enum mem_zone zone, uint32_t flags, uint32_t caps, size_t bytes, uint32_t align)
+{
+	struct sof_heap_def *entry = heaps;
+	void *ptr = NULL;
+	// DOKONCZ TO. Wiem ze nic nie pamietasz juz po urlopie ;)
+	if (!ptr)
+		return;
+
+	while (entry->heap) {
+		if (entry->ops->is_heap_pointer(ptr)) {
+			entry->ops->free(entry->heap, ptr);
+			return;
+		}
+	}
+
+
+	// trafia tutaj takze zone_buffer z rballoc
+
+
+	if (!ptr && zone == SOF_MEM_ZONE_SYS)
+		k_panic();
+
+	return ptr;
+}
+
+void *BACKUP_rmalloc(enum mem_zone zone, uint32_t flags, uint32_t caps, size_t bytes)
 {
 	void *ptr;
 	struct k_heap *heap;
@@ -427,6 +535,71 @@ void *rmalloc(enum mem_zone zone, uint32_t flags, uint32_t caps, size_t bytes)
 		k_panic();
 
 	return ptr;
+}
+
+
+
+
+
+static struct mm_heap *get_heap_from_caps(struct mm_heap *heap, int count,
+					  uint32_t caps)
+{
+	uint32_t mask;
+	int i;
+
+	/* find first heap that support type */
+	for (i = 0; i < count; i++) {
+		mask = heap[i].caps & caps;
+		if (mask == caps)
+			return &heap[i];
+	}
+
+	return NULL;
+}
+
+void *BACKUP_rballoc_align(uint32_t flags, uint32_t caps, size_t bytes, uint32_t align) {
+
+#if CONFIG_VIRTUAL_HEAP
+	struct vmh_heap *virtual_heap;
+#endif
+	struct k_heap *heap;
+
+	/* choose a heap */
+	if (caps & SOF_MEM_CAPS_L3) {
+#if CONFIG_L3_HEAP
+		heap = &l3_heap;
+		return (__sparse_force void *)l3_heap_alloc_aligned(heap, align, bytes);
+#else
+		tr_err(&zephyr_tr, "L3_HEAP not available.");
+		return NULL;
+#endif
+	} else {
+		heap = &sof_heap;
+	}
+
+#if CONFIG_VIRTUAL_HEAP
+	/* Use virtual heap if it is available */
+	virtual_heap = virtual_buffers_heap[cpu_get_id()];
+	if (virtual_heap)
+		return virtual_heap_alloc(virtual_heap, flags, caps, bytes, align);
+#endif /* CONFIG_VIRTUAL_HEAP */
+
+	if (flags & SOF_MEM_FLAG_COHERENT)
+		return heap_alloc_aligned(heap, align, bytes);
+
+	return (__sparse_force void *)heap_alloc_aligned_cached(heap, align, bytes);
+}
+
+
+
+
+
+
+
+
+
+void *rmalloc(enum mem_zone zone, uint32_t flags, uint32_t caps, size_t bytes)
+return rmalloc_aligned(zone, flags, caps, bytes, 0);
 }
 EXPORT_SYMBOL(rmalloc);
 
@@ -490,35 +663,7 @@ EXPORT_SYMBOL(rzalloc);
 void *rballoc_align(uint32_t flags, uint32_t caps, size_t bytes,
 		    uint32_t align)
 {
-#if CONFIG_VIRTUAL_HEAP
-	struct vmh_heap *virtual_heap;
-#endif
-	struct k_heap *heap;
-
-	/* choose a heap */
-	if (caps & SOF_MEM_CAPS_L3) {
-#if CONFIG_L3_HEAP
-		heap = &l3_heap;
-		return (__sparse_force void *)l3_heap_alloc_aligned(heap, align, bytes);
-#else
-		tr_err(&zephyr_tr, "L3_HEAP not available.");
-		return NULL;
-#endif
-	} else {
-		heap = &sof_heap;
-	}
-
-#if CONFIG_VIRTUAL_HEAP
-	/* Use virtual heap if it is available */
-	virtual_heap = virtual_buffers_heap[cpu_get_id()];
-	if (virtual_heap)
-		return virtual_heap_alloc(virtual_heap, flags, caps, bytes, align);
-#endif /* CONFIG_VIRTUAL_HEAP */
-
-	if (flags & SOF_MEM_FLAG_COHERENT)
-		return heap_alloc_aligned(heap, align, bytes);
-
-	return (__sparse_force void *)heap_alloc_aligned_cached(heap, align, bytes);
+	return rmalloc_aligned(SOF_MEM_ZONE_BUFFER, flags, caps, bytes, align);
 }
 EXPORT_SYMBOL(rballoc_align);
 
@@ -527,34 +672,33 @@ EXPORT_SYMBOL(rballoc_align);
  */
 void rfree(void *ptr)
 {
+	struct sof_heap_def *entry = heaps;
+
 	if (!ptr)
 		return;
 
-#if CONFIG_L3_HEAP
-	if (is_l3_heap_pointer(ptr)) {
-		l3_heap_free(&l3_heap, ptr);
-		return;
+	while (entry->heap) {
+		if (entry->ops->is_heap_pointer(ptr)) {
+			entry->ops->free(entry->heap, ptr);
+			return;
+		}
 	}
-#endif
 
-#if CONFIG_VIRTUAL_HEAP
-	if (is_virtual_heap_pointer(ptr)) {
-		virtual_heap_free(ptr);
-		return;
-	}
-#endif
-
-	heap_free(&sof_heap, ptr);
+	tr_err(&zephyr_tr, "No valid heap to free %p!", ptr);
+	k_panic();
 }
 EXPORT_SYMBOL(rfree);
 
 static int heap_init(void)
 {
-	sys_heap_init(&sof_heap.heap, heapmem, HEAPMEM_SIZE);
+	struct sof_heap_def *entry = sof_heaps;
 
-#if CONFIG_L3_HEAP
-	sys_heap_init(&l3_heap.heap, UINT_TO_POINTER(get_l3_heap_start()), get_l3_heap_size());
-#endif
+	while (entry->heap) {
+		if (entry->ops->init_struct)
+			entry->ops->init_struct(entry->heap);
+
+		entry->ops->init(entry->heap, entry->heap->heap.init_mem, entry->heap->heap.init_bytes);
+	}
 
 	return 0;
 }
