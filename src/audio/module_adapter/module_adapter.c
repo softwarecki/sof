@@ -26,6 +26,7 @@
 #include <rtos/symbol.h>
 #include <limits.h>
 #include <stdint.h>
+#include <rtos/userspace_helper.h>
 
 LOG_MODULE_REGISTER(module_adapter, CONFIG_SOF_LOG_LEVEL);
 
@@ -149,10 +150,11 @@ struct comp_dev *module_adapter_new_ext(const struct comp_driver *drv,
 err:
 #if CONFIG_IPC_MAJOR_4
 	if (mod)
-		rfree(mod->priv.cfg.input_pins);
-#endif
-	rfree(mod);
-	rfree(dev);
+		drv_heap_free(drv->drv_heap, mod->priv.cfg.input_pins);
+#endif /* CONFIG_IPC_MAJOR_4 */
+
+	drv_heap_free(drv->drv_heap, mod);
+	drv_heap_free(drv->drv_heap, dev);
 	return NULL;
 }
 EXPORT_SYMBOL(module_adapter_new);
@@ -1225,6 +1227,7 @@ void module_adapter_free(struct comp_dev *dev)
 {
 	int ret;
 	struct processing_module *mod = comp_mod(dev);
+	const struct comp_driver *drv = dev->drv;
 	struct list_item *blist, *_blist;
 
 	comp_dbg(dev, "module_adapter_free(): start");
@@ -1245,11 +1248,11 @@ void module_adapter_free(struct comp_dev *dev)
 	}
 
 #if CONFIG_IPC_MAJOR_4
-	rfree(mod->priv.cfg.input_pins);
+	drv_heap_free(drv->drv_heap, mod->priv.cfg.input_pins);
 #endif
 
-	rfree(mod);
-	rfree(dev);
+	drv_heap_free(drv->drv_heap, mod);
+	drv_heap_free(drv->drv_heap, dev);
 }
 EXPORT_SYMBOL(module_adapter_free);
 

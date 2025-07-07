@@ -162,7 +162,7 @@ AdspErrorCode native_system_service_get_interface(enum interface_id id,
 	return ADSP_NO_ERROR;
 }
 
-const struct native_system_service native_system_service = {
+const APP_USER_DATA struct native_system_service native_system_service = {
 	.basic = {
 		.log_message = native_system_service_log_message,
 		.safe_memcpy = native_system_service_safe_memcpy,

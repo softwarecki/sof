@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 #include <module/module/system_service.h>
-
+#include <sof/audio/module_adapter/module/modules_userspace.h>
 struct native_system_service {
 	struct system_service basic;
 };
