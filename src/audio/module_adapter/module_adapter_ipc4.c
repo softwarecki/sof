@@ -22,6 +22,7 @@
 #include <rtos/symbol.h>
 #include <limits.h>
 #include <stdint.h>
+#include <rtos/userspace_helper.h>
 
 LOG_MODULE_DECLARE(module_adapter, CONFIG_SOF_LOG_LEVEL);
 

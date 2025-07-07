@@ -21,6 +21,7 @@
 #include <iadk_module_adapter.h>
 #include <system_agent.h>
 #include <sof/audio/module_adapter/library/native_system_service.h>
+#include <sof/audio/module_adapter/library/userspace_proxy.h>
 
 using namespace intel_adsp;
 using namespace intel_adsp::system;
@@ -37,7 +38,7 @@ namespace system
 {
 
 /* Structure storing handles to system service operations */
-const AdspSystemService SystemAgent::system_service_ = {
+const APP_USER_DATA AdspSystemService SystemAgent::system_service_ = {
 	native_system_service_log_message,
 	native_system_service_safe_memcpy,
 	native_system_service_safe_memmove,

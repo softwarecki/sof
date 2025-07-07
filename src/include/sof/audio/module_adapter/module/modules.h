@@ -42,4 +42,7 @@
 /* Processing Module Adapter API */
 extern const struct module_interface processing_module_adapter_interface;
 
+/* Processing Module Adapter API user space */
+extern const struct module_interface processing_module_adapter_interface_user;
+
 #endif /* __SOF_AUDIO_MODULES__ */
