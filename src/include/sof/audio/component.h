@@ -854,8 +854,7 @@ static inline enum sof_comp_type dev_comp_type(const struct comp_dev *dev)
  * @param bytes Size of the component device in bytes.
  * @return Pointer to the component device.
  */
-static inline struct comp_dev *comp_alloc(const struct comp_driver *drv,
-					  size_t bytes)
+static inline struct comp_dev *comp_alloc(const struct comp_driver *drv, size_t bytes)
 {
 	struct comp_dev *dev = NULL;
 
@@ -863,8 +862,7 @@ static inline struct comp_dev *comp_alloc(const struct comp_driver *drv,
 	 * Use uncached address everywhere to access components to rule out
 	 * multi-core failures. TODO: verify if cached alias may be used in some cases
 	 */
-	dev = drv_heap_rzalloc(dev->drv->drv_heap, SOF_MEM_FLAG_USER | SOF_MEM_FLAG_COHERENT,
-			       bytes);
+	dev = drv_heap_rzalloc(drv->drv_heap, SOF_MEM_FLAG_USER | SOF_MEM_FLAG_COHERENT, bytes);
 	if (!dev)
 		return NULL;
 	dev->size = bytes;
