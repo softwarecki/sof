@@ -517,14 +517,11 @@ static int lib_manager_start_agent(const struct comp_driver *drv, const uint32_t
 	mod_cfg.size = args->size >> 2;
 
 #if CONFIG_USERSPACE
-	bool is_userspace = !!;
-#endif
-#if CONFIG_USERSPACE
 	/* If drv->drv_heap is allocated, it means the module is userspace. */
 	if (drv->drv_heap) {
 		ret = userspace_module_create(userspace, drv, mod_manifest, agent,
 					      module_entry_point, module_id, instance_id, 0,
-					      log_handle, &mod_cfg, agent_iface);
+					      log_handle, &mod_cfg, agent_interface);
 		if (ret)
 			tr_err(&lib_manager_tr, "userspace_module_create failed! %d", ret);
 		return ret;
@@ -746,8 +743,8 @@ int lib_manager_register_module(const uint32_t component_id)
 	}
 #endif /* CONFIG_USERSPACE */
 
-	drv = drv_heap_rmalloc(SOF_MEM_FLAG_KERNEL | SOF_MEM_FLAG_COHERENT,
-		      sizeof(struct comp_driver));
+	drv = drv_heap_rmalloc(drv_heap, SOF_MEM_FLAG_KERNEL | SOF_MEM_FLAG_COHERENT,
+			       sizeof(struct comp_driver));
 	if (!drv) {
 		tr_err(&lib_manager_tr, "failed to allocate comp_driver");
 		goto cleanup;
