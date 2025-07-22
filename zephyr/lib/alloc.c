@@ -100,7 +100,8 @@ static uint8_t __aligned(PLATFORM_DCACHE_ALIGN) heapmem[HEAPMEM_SIZE];
  */
 #if CONFIG_USERSPACE
 #define SHARED_HEAP_MEM_SIZE	(HEAPMEM_SIZE / 8)
-__section(".heap_mem") static uint8_t __aligned(HOST_PAGE_SIZE) shd_heapmem[SHARED_HEAP_MEM_SIZE];
+__section(".heap_mem")
+static uint8_t __aligned(HOST_PAGE_SIZE) shared_heapmem[SHARED_HEAP_MEM_SIZE];
 #else
 #define SHARED_HEAP_MEM_SIZE	0
 #endif /* CONFIG_USERSPACE */
@@ -137,8 +138,8 @@ static struct k_heap sof_shd_heap;
 
 static bool is_shd_heap_pointer(void *ptr)
 {
-	uintptr_t shd_heap_start = POINTER_TO_UINT(shd_heapmem);
-	uintptr_t shd_heap_end = POINTER_TO_UINT(shd_heapmem + SHARED_HEAP_MEM_SIZE);
+	uintptr_t shd_heap_start = POINTER_TO_UINT(shared_heapmem);
+	uintptr_t shd_heap_end = POINTER_TO_UINT(shared_heapmem + SHARED_HEAP_MEM_SIZE);
 
 	if (is_cached(ptr))
 		ptr = sys_cache_uncached_ptr_get((__sparse_force void __sparse_cache *)ptr);
@@ -153,7 +154,7 @@ static bool is_shd_heap_pointer(void *ptr)
  */
 uintptr_t get_shared_heap_start(void)
 {
-	return ROUND_UP(POINTER_TO_UINT(shd_heapmem), HOST_PAGE_SIZE);
+	return ROUND_UP(POINTER_TO_UINT(shared_heapmem), HOST_PAGE_SIZE);
 }
 
 /**
@@ -584,8 +585,8 @@ static int heap_init(void)
 	sys_heap_init(&sof_heap.heap, heapmem, HEAPMEM_SIZE - SHARED_HEAP_MEM_SIZE);
 
 #if CONFIG_USERSPACE
-	sys_heap_init(&sof_shd_heap.heap, shd_heapmem, SHARED_HEAP_MEM_SIZE);
-	arch_mem_map(&shd_heapmem, (uintptr_t)&shd_heapmem, SHARED_HEAP_MEM_SIZE,
+	sys_heap_init(&sof_shd_heap.heap, shared_heapmem, SHARED_HEAP_MEM_SIZE);
+	arch_mem_map(&shared_heapmem, (uintptr_t)&shared_heapmem, SHARED_HEAP_MEM_SIZE,
 		     K_MEM_PERM_USER | K_MEM_PERM_RW);
 #endif
 
