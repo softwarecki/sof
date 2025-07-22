@@ -100,7 +100,7 @@ static uint8_t __aligned(PLATFORM_DCACHE_ALIGN) heapmem[HEAPMEM_SIZE];
  */
 #if CONFIG_USERSPACE
 #define SHARED_HEAP_MEM_SIZE	(HEAPMEM_SIZE / 8)
-__section(".heap_mem")
+__section(".shared_heap_mem")
 static uint8_t __aligned(HOST_PAGE_SIZE) shared_heapmem[SHARED_HEAP_MEM_SIZE];
 #else
 #define SHARED_HEAP_MEM_SIZE	0
