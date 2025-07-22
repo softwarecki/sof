@@ -586,8 +586,6 @@ static int heap_init(void)
 
 #if CONFIG_USERSPACE
 	sys_heap_init(&shared_heap.heap, shared_heapmem, SHARED_HEAP_MEM_SIZE);
-	arch_mem_map(&shared_heapmem, (uintptr_t)&shared_heapmem, SHARED_HEAP_MEM_SIZE,
-		     K_MEM_PERM_USER | K_MEM_PERM_RW);
 #endif
 
 #if CONFIG_L3_HEAP
