@@ -134,7 +134,7 @@ extern char _end[], _heap_sentry[];
 static struct k_heap sof_heap;
 
 #if CONFIG_USERSPACE
-static struct k_heap sof_shd_heap;
+static struct k_heap shared_heap;
 
 static bool is_shd_heap_pointer(void *ptr)
 {
@@ -440,7 +440,7 @@ void *rmalloc(uint32_t flags, size_t bytes)
 #endif
 #if CONFIG_USERSPACE
 	} else if (flags & SOF_MEM_FLAG_USER_SHARED) {
-		heap = &sof_shd_heap;
+		heap = &shared_heap;
 #endif
 	} else {
 		heap = &sof_heap;
@@ -527,7 +527,7 @@ void *rballoc_align(uint32_t flags, size_t bytes,
 #endif
 #if CONFIG_USERSPACE
 	} else if (flags & SOF_MEM_FLAG_USER_SHARED) {
-		heap = &sof_shd_heap;
+		heap = &shared_heap;
 #endif /* CONFIG_USERSPACE */
 	} else {
 #if CONFIG_VIRTUAL_HEAP
@@ -571,7 +571,7 @@ void rfree(void *ptr)
 
 #if CONFIG_USERSPACE
 	if (is_shd_heap_pointer(ptr)) {
-		heap_free(&sof_shd_heap, ptr);
+		heap_free(&shared_heap, ptr);
 		return;
 	}
 #endif
@@ -585,7 +585,7 @@ static int heap_init(void)
 	sys_heap_init(&sof_heap.heap, heapmem, HEAPMEM_SIZE - SHARED_HEAP_MEM_SIZE);
 
 #if CONFIG_USERSPACE
-	sys_heap_init(&sof_shd_heap.heap, shared_heapmem, SHARED_HEAP_MEM_SIZE);
+	sys_heap_init(&shared_heap.heap, shared_heapmem, SHARED_HEAP_MEM_SIZE);
 	arch_mem_map(&shared_heapmem, (uintptr_t)&shared_heapmem, SHARED_HEAP_MEM_SIZE,
 		     K_MEM_PERM_USER | K_MEM_PERM_RW);
 #endif
