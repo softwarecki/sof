@@ -398,42 +398,33 @@ static void module_user_handler(struct k_work_user *work_item)
 
 static int userspace_module_memory_init(struct userspace_module *user, const struct comp_driver *drv)
 {
-	const uintptr_t shd_addr = get_shared_heap_start();
-	const size_t shd_size = get_shared_heap_size();
 	uintptr_t addr_aligned;
 	size_t size_aligned;
 
 	/* Add shared heap uncached and cached space to memory partitions */
-	struct k_mem_partition parts[3];
+	struct k_mem_partition parts[2];
 	struct k_mem_partition *parts_ptr[] = {
 			&ipc_partition,
-			&parts[0],
 #ifndef CONFIG_XTENSA_MMU_DOUBLE_MAP
-			&parts[1],
+			&parts[0],
 #endif /* CONFIG_XTENSA_MMU_DOUBLE_MAP */
-			&parts[2]
+			&parts[1]
 		};
-	k_mem_region_align(&addr_aligned, &size_aligned, shd_addr, shd_size,
-			   CONFIG_MM_DRV_PAGE_SIZE);
-	parts[0].start = addr_aligned;
-	parts[0].size = size_aligned;
-	parts[0].attr = K_MEM_PARTITION_P_RW_U_RW;
-	
 #ifndef CONFIG_XTENSA_MMU_DOUBLE_MAP
 	k_mem_region_align(&addr_aligned, &size_aligned,
 			   POINTER_TO_UINT(sys_cache_cached_ptr_get(UINT_TO_POINTER(shd_addr))),
 			   shd_size, CONFIG_MM_DRV_PAGE_SIZE);
-	parts[1].start = addr_aligned;
-	parts[1].size = size_aligned;
-	parts[1].attr = K_MEM_PARTITION_P_RW_U_RW;
+	parts[0].start = addr_aligned;
+	parts[0].size = size_aligned;
+	parts[0].attr = K_MEM_PARTITION_P_RW_U_RW;
 #endif /* CONFIG_XTENSA_MMU_DOUBLE_MAP */
 
 	/* Add module private heap to memory partitions */
 	k_mem_region_align(&addr_aligned, &size_aligned, POINTER_TO_UINT(drv->drv_heap->init_mem),
 			   DRV_HEAP_SIZE, CONFIG_MM_DRV_PAGE_SIZE);
-	parts[2].start = addr_aligned;
-	parts[2].size = size_aligned;
-	parts[2].attr = K_MEM_PARTITION_P_RW_U_RW;
+	parts[1].start = addr_aligned;
+	parts[1].size = size_aligned;
+	parts[1].attr = K_MEM_PARTITION_P_RW_U_RW;
 	
 	arch_mem_map((void*)ipc_partition.start, (uintptr_t)ipc_partition.start, ipc_partition.size, K_MEM_PERM_USER | K_MEM_PERM_RW);
 
