@@ -743,8 +743,8 @@ int lib_manager_register_module(const uint32_t component_id)
 	}
 #endif /* CONFIG_USERSPACE */
 
-	drv = drv_heap_rmalloc(SOF_MEM_FLAG_KERNEL | SOF_MEM_FLAG_COHERENT,
-		      sizeof(struct comp_driver));
+	drv = drv_heap_rmalloc(drv_heap, SOF_MEM_FLAG_KERNEL | SOF_MEM_FLAG_COHERENT,
+			       sizeof(struct comp_driver));
 	if (!drv) {
 		tr_err(&lib_manager_tr, "failed to allocate comp_driver");
 		goto cleanup;
