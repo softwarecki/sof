@@ -517,14 +517,11 @@ static int lib_manager_start_agent(const struct comp_driver *drv, const uint32_t
 	mod_cfg.size = args->size >> 2;
 
 #if CONFIG_USERSPACE
-	bool is_userspace = !!;
-#endif
-#if CONFIG_USERSPACE
 	/* If drv->drv_heap is allocated, it means the module is userspace. */
 	if (drv->drv_heap) {
 		ret = userspace_module_create(userspace, drv, mod_manifest, agent,
 					      module_entry_point, module_id, instance_id, 0,
-					      log_handle, &mod_cfg, agent_iface);
+					      log_handle, &mod_cfg, agent_interface);
 		if (ret)
 			tr_err(&lib_manager_tr, "userspace_module_create failed! %d", ret);
 		return ret;
