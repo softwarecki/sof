@@ -22,8 +22,8 @@
 #define DRV_HEAP_CACHED		CONFIG_SOF_ZEPHYR_HEAP_CACHED
 
 /* Zephyr includes */
-#include <version.h>
 #include <zephyr/kernel.h>
+#include <zephyr/app_memory/app_memdomain.h>
 
 #if CONFIG_USERSPACE
 
