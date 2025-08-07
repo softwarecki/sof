@@ -30,11 +30,12 @@ struct sof_man_module;
 /* Processing module structure fields needed for user mode */
 struct userspace_context {
 	struct k_mem_domain *comp_dom;			/* Module specific memory domain	*/
+	const struct module_interface *interface;	/* Userspace module interface		*/
+	struct k_msgq *in_msgq;				/* pointer to input message queue	*/
+	struct k_msgq *out_msgq;			/* pointer to output message queue	*/
+
 	uint32_t security_domain_id;			/* Determine security domain id number	*/
 	void *wrk_ctx;					/* Work queue context			*/
-	const struct module_interface *interface;	/* Userspace module interface		*/
-	struct k_msgq *ipc_in_msg_q;			/* pointer to input message queue	*/
-	struct k_msgq *ipc_out_msg_q;			/* pointer to output message queue	*/
 };
 /**
 * Creates userspace module proxy
