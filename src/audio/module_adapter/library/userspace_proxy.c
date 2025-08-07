@@ -134,6 +134,18 @@ enum {
 	MODULE_CMD_FREE,
 	MODULE_CMD_TRIGGER
 };
+#include "../../../../../zephyr/arch/xtensa/include/xtensa_mmu_priv.h"
+
+uint32_t ptable_size(struct k_mem_domain *domain)
+{
+	uint32_t i, cnt = 0;
+	uint32_t *table = domain->arch.ptables;
+	for (i = 0; i < 1024; i++)
+		if (table[i] != XTENSA_MMU_PTE_L1_ILLEGAL)
+			cnt++;
+
+	return cnt;
+}
 
 static void user_worker_handler(struct k_work_user *work_item)
 {
@@ -459,6 +471,11 @@ static int userspace_proxy_add_sections(struct userspace_context *user, uint32_t
 			       K_MEM_PARTITION_P_RW_U_RW);
 }
 
+//#include <zephyr/arch/xtensa/include/xtensa_mmu_priv.h>
+//#include <arch/xtensa/include/xtensa_mmu_priv.h>
+//#include <xtensa/include/xtensa_mmu_priv.h>
+//#include <xtensa_mmu_priv.h>
+
 int userspace_proxy_create(struct userspace_context **user_ctx, const struct comp_driver *drv,
 			   const struct sof_man_module *manifest, system_agent_start_fn start_fn,
 			   uintptr_t entry_point, uint32_t module_id, uint32_t instance_id,
@@ -528,6 +545,11 @@ int userspace_proxy_create(struct userspace_context **user_ctx, const struct com
 	user->interface = drv->adapter_ops;
 	((struct comp_driver *)drv)->adapter_ops = &userspace_proxy_adapter_interface;
 
+	tr_err(&modules_user_tr, "kernel domain size %u", ptable_size(_current->mem_domain_info.mem_domain));
+	tr_err(&modules_user_tr, "userspace domain size %u", ptable_size(domain));
+	uint32_t *imr = (uint32_t *)0x162080;
+	tr_err(&modules_user_tr, "imr %u %u %u %u", imr[0], imr[1], imr[2], imr[3]);
+	
 	return params->status;
 
 error_worker:
