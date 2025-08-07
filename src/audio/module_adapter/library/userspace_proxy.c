@@ -40,6 +40,8 @@ K_APPMEM_PARTITION_DEFINE(ipc_partition);
 
 struct user_worker_data {
 	struct k_work_user work_item;		/* ipc worker workitem			*/
+	struct k_msgq *tmp_in_msgq;				/* pointer to input message queue	*/
+	struct k_msgq *tmp_out_msgq;			/* pointer to output message queue	*/
 	k_tid_t ipc_worker_tid;			/* ipc worker thread ID			*/
 	uint8_t ipc_params[MAX_PARAM_SIZE];	/* ipc parameter buffer			*/
 	uint32_t module_ref_cnt;		/* module reference count		*/
@@ -150,7 +152,7 @@ static void user_worker_handler(struct k_work_user *work_item)
 	struct user_worker_data *wd = CONTAINER_OF(work_item, struct user_worker_data, work_item);
 	struct module_params *params = (struct module_params *)wd->ipc_params;
 	while(1) {
-		k_msgq_get(wd->ipc_in_msg_q, params, K_FOREVER);
+		k_msgq_get(wd->tmp_in_msgq, params, K_FOREVER);
 		ops = params->context->interface;
 
 		switch(params->cmd) {
@@ -235,14 +237,13 @@ static void user_worker_handler(struct k_work_user *work_item)
 			params->status = EINVAL;
 			break;
 		}
-		k_msgq_put(wd->ipc_out_msg_q, params, K_FOREVER);
+		k_msgq_put(wd->tmp_out_msgq, params, K_FOREVER);
 
 		k_yield();
 	}
 }
 
-static int user_worker_msgq_alloc(struct user_security_domain *security_domain,
-				  struct user_worker_data *worker_data)
+static int user_worker_msgq_alloc(struct userspace_context *context)
 {
 	char *buffer;
 
@@ -250,19 +251,38 @@ static int user_worker_msgq_alloc(struct user_security_domain *security_domain,
 	if (!buffer)
 		return -ENOMEM;
 
-	k_msgq_init(&security_domain->in_msgq, buffer, MAX_PARAM_SIZE, 1);
-	k_msgq_init(&security_domain->out_msgq, (buffer + MAX_PARAM_SIZE), MAX_PARAM_SIZE, 1);
+	context->in_msgq = k_object_alloc(K_OBJ_MSGQ);
+	if (!context->in_msgq) {
+		rfree(buffer);
+		return -ENOMEM;
+	}
 
-	worker_data->ipc_in_msg_q = &security_domain->in_msgq;
-	worker_data->ipc_out_msg_q = &security_domain->out_msgq;
+	context->out_msgq = k_object_alloc(K_OBJ_MSGQ);
+	if (!context->out_msgq) {
+		k_object_free(context->in_msgq);
+		rfree(buffer);
+		return -ENOMEM;
+	}
+	/* k_msgq_alloc_init */
+	k_msgq_init(context->in_msgq, buffer, MAX_PARAM_SIZE, 1);
+	k_msgq_init(context->out_msgq, (buffer + MAX_PARAM_SIZE), MAX_PARAM_SIZE, 1);
 
 	return 0;
 }
 
-static void user_worker_msgq_free(struct user_worker_data *worker_data)
+static void user_worker_msgq_free(struct userspace_context *context)
 {
-	/* ipc_in_msg_q->buffer_start points to whole buffer allocated for message queues */
-	rfree(worker_data->ipc_in_msg_q->buffer_start);
+	int ret;
+	/* in_msgq->buffer_start points to whole buffer allocated for message queues */
+	/* TODO: Assert error code */
+	ret = k_msgq_cleanup(context->in_msgq);
+	assert(!ret);
+	ret = k_msgq_cleanup(context->out_msgq);
+	assert(!ret);
+
+	rfree(context->in_msgq->buffer_start);
+	k_object_free(context->in_msgq);
+	k_object_free(context->out_msgq);
 }
 static int user_worker_init(struct userspace_context *user)
 {
@@ -287,9 +307,11 @@ static int user_worker_init(struct userspace_context *user)
 		worker_data[sd_id] = wd;
 		user->wrk_ctx = wd;
 
-		ret = user_worker_msgq_alloc(sd, wd);
+		ret = user_worker_msgq_alloc(user);
 		if (ret < 0)
 			goto err_worker;
+		wd->tmp_in_msgq = user->in_msgq;
+		wd->tmp_out_msgq = user->out_msgq;
 
 		wd->p_worker_stack = user_stack_allocate(CONFIG_SOF_STACK_SIZE, K_USER);
 		if (!wd->p_worker_stack) {
@@ -318,8 +340,8 @@ static int user_worker_init(struct userspace_context *user)
 
 		/* Grant a thread access to a kernel object (IPC msg. data). */
 		k_thread_access_grant(wd->ipc_worker_tid,
-				      wd->ipc_in_msg_q,
-				      wd->ipc_out_msg_q);
+				      user->in_msgq,
+				      user->out_msgq);
 
 		/* Submit work item to the queue */
 		ret = k_work_user_submit_to_queue(&sd->ipc_user_work_q, &wd->work_item);
@@ -338,7 +360,7 @@ err_init:
 	user_stack_free(wd->p_worker_stack);
 
 err_msgq:
-	user_worker_msgq_free(wd);
+	user_worker_msgq_free(user);
 
 err_worker:
 	rfree(wd);
@@ -362,9 +384,7 @@ static void user_worker_free(struct userspace_context *user)
 	if (wd->module_ref_cnt == 0) {
 		k_thread_abort(wd->ipc_worker_tid);
 		user_stack_free(wd->p_worker_stack);
-		k_msgq_cleanup(wd->ipc_in_msg_q);
-		k_msgq_cleanup(wd->ipc_out_msg_q);
-		user_worker_msgq_free(wd);
+		user_worker_msgq_free(user);
 		rfree(wd);
 		worker_data[sd_id] = NULL;
 	}
@@ -387,14 +407,14 @@ static int user_worker_call(struct userspace_context *user, struct processing_mo
 		return ret;
 	}
 
-	ret = k_msgq_put(wr_data->ipc_in_msg_q, params, K_FOREVER);
+	ret = k_msgq_put(user->in_msgq, params, K_FOREVER);
 	if (ret < 0) {
 		comp_err(mod->dev, "k_msgq_put(): error: %d", ret);
 		return ret;
 	}
 
 
-	ret = k_msgq_get(wr_data->ipc_out_msg_q, params, K_FOREVER);
+	ret = k_msgq_get(user->out_msgq, params, K_FOREVER);
 	if (ret < 0)
 		comp_err(mod->dev, "k_msgq_get(): error: %d", ret);
 
