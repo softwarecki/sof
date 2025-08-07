@@ -33,6 +33,8 @@ struct userspace_context {
 	uint32_t security_domain_id;			/* Determine security domain id number	*/
 	void *wrk_ctx;					/* Work queue context			*/
 	const struct module_interface *interface;	/* Userspace module interface		*/
+	struct k_msgq *ipc_in_msg_q;			/* pointer to input message queue	*/
+	struct k_msgq *ipc_out_msg_q;			/* pointer to output message queue	*/
 };
 /**
 * Creates userspace module proxy

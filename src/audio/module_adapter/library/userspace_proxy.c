@@ -39,8 +39,6 @@ K_APPMEM_PARTITION_DEFINE(ipc_partition);
 #define MAX_PARAM_SIZE	0x200
 
 struct user_worker_data {
-	struct k_msgq *ipc_in_msg_q;		/* pointer to input message queue	*/
-	struct k_msgq *ipc_out_msg_q;		/* pointer to output message queue	*/
 	struct k_work_user work_item;		/* ipc worker workitem			*/
 	k_tid_t ipc_worker_tid;			/* ipc worker thread ID			*/
 	uint8_t ipc_params[MAX_PARAM_SIZE];	/* ipc parameter buffer			*/
@@ -50,8 +48,6 @@ struct user_worker_data {
 
 struct user_security_domain {
 	struct k_work_user_q ipc_user_work_q;
-	struct k_msgq in_msgq;
-	struct k_msgq out_msgq;
 };
 
 static struct user_security_domain security_domain[CONFIG_SEC_DOMAIN_MAX_NUMBER];
