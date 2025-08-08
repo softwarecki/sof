@@ -146,98 +146,105 @@ uint32_t ptable_size(struct k_mem_domain *domain)
 	return cnt;
 }
 
-static void user_worker_handler(struct k_work_user *work_item)
+void userspace_proxy_handle_request(struct processing_module *mod, struct module_params *params)
 {
 	const struct module_interface *ops;
+	
+	if (mod)
+		ops = mod->user_ctx->interface;
 
+	switch(params->cmd) {
+	case MODULE_CMD_AGENT_START:
+		params->status = params->ext.agent.start_fn(params->ext.agent.entry_point,
+							    params->ext.agent.module_id,
+							    params->ext.agent.instance_id,
+							    params->ext.agent.core_id,
+							    params->ext.agent.log_handle,
+							    &params->ext.agent.mod_cfg,
+							    &params->ext.agent.iface);
+		break;
+
+	case MODULE_CMD_INIT:
+		params->status = ops->init(params->mod);
+		break;
+
+	case MODULE_CMD_PREPARE:
+		params->status = ops->prepare(params->mod, params->ext.proc.sources,
+					      params->ext.proc.num_of_sources,
+					      params->ext.proc.sinks,
+					      params->ext.proc.num_of_sinks);
+		break;
+
+	case MODULE_CMD_PROC_READY:
+		params->status = ops->is_ready_to_process(params->mod,
+							  params->ext.proc.sources,
+							  params->ext.proc.num_of_sources,
+							  params->ext.proc.sinks,
+							  params->ext.proc.num_of_sinks);
+		break;
+
+	case MODULE_CMD_BIND:
+		params->status = ops->bind(params->mod, params->ext.bind_data);
+		break;
+
+	case MODULE_CMD_UNBIND:
+		params->status = ops->unbind(params->mod, params->ext.bind_data);
+		break;
+
+	case MODULE_CMD_RESET:
+		params->status = ops->reset(params->mod);
+		break;
+
+	case MODULE_CMD_FREE:
+		params->status = ops->free(params->mod);
+		break;
+
+	case MODULE_CMD_SET_CONF:
+		params->status = ops->set_configuration(params->mod,
+							params->ext.set_conf.config_id,
+							params->ext.set_conf.pos,
+							params->ext.set_conf.data_off_size,
+							params->ext.set_conf.fragment,
+							params->ext.set_conf.fragment_size,
+							params->ext.set_conf.response,
+							params->ext.set_conf.response_size);
+		break;
+
+	case MODULE_CMD_GET_CONF:
+		params->status = ops->get_configuration(params->mod,
+							params->ext.get_conf.config_id,
+							params->ext.get_conf.data_off_size,
+							params->ext.get_conf.fragment,
+							params->ext.get_conf.fragment_size);
+		break;
+
+	case MODULE_CMD_SET_PROCMOD:
+		params->status = ops->set_processing_mode(params->mod,
+							  params->ext.proc_mode.mode);
+		break;
+
+	case MODULE_CMD_GET_PROCMOD:
+		params->ext.proc_mode.mode = ops->get_processing_mode(params->mod);
+		break;
+
+	case MODULE_CMD_TRIGGER:
+		params->status = ops->trigger(params->mod, params->ext.trigger_data);
+		break;
+
+	default:
+		params->status = -EINVAL;
+		break;
+	}
+}
+
+static void user_worker_handler(struct k_work_user *work_item)
+{
 	struct user_worker_data *wd = CONTAINER_OF(work_item, struct user_worker_data, work_item);
 	struct module_params *params = (struct module_params *)wd->ipc_params;
 	while(1) {
 		k_msgq_get(wd->tmp_in_msgq, params, K_FOREVER);
-		ops = params->context->interface;
 
-		switch(params->cmd) {
-		case MODULE_CMD_AGENT_START:
-			params->status = params->ext.agent.start_fn(params->ext.agent.entry_point,
-								    params->ext.agent.module_id,
-								    params->ext.agent.instance_id,
-								    params->ext.agent.core_id,
-								    params->ext.agent.log_handle,
-								    &params->ext.agent.mod_cfg,
-								    &params->ext.agent.iface);
-			break;
-
-		case MODULE_CMD_INIT:
-			params->status = ops->init(params->mod);
-			break;
-
-		case MODULE_CMD_PREPARE:
-			params->status = ops->prepare(params->mod, params->ext.proc.sources,
-						      params->ext.proc.num_of_sources,
-						      params->ext.proc.sinks,
-						      params->ext.proc.num_of_sinks);
-			break;
-
-		case MODULE_CMD_PROC_READY:
-			params->status = ops->is_ready_to_process(params->mod,
-								  params->ext.proc.sources,
-								  params->ext.proc.num_of_sources,
-								  params->ext.proc.sinks,
-								  params->ext.proc.num_of_sinks);
-			break;
-
-		case MODULE_CMD_BIND:
-			params->status = ops->bind(params->mod, params->ext.bind_data);
-			break;
-
-		case MODULE_CMD_UNBIND:
-			params->status = ops->unbind(params->mod, params->ext.bind_data);
-			break;
-
-		case MODULE_CMD_RESET:
-			params->status = ops->reset(params->mod);
-			break;
-
-		case MODULE_CMD_FREE:
-			params->status = ops->free(params->mod);
-			break;
-
-		case MODULE_CMD_SET_CONF:
-			params->status = ops->set_configuration(params->mod,
-								params->ext.set_conf.config_id,
-								params->ext.set_conf.pos,
-								params->ext.set_conf.data_off_size,
-								params->ext.set_conf.fragment,
-								params->ext.set_conf.fragment_size,
-								params->ext.set_conf.response,
-								params->ext.set_conf.response_size);
-			break;
-
-		case MODULE_CMD_GET_CONF:
-			params->status = ops->get_configuration(params->mod,
-								params->ext.get_conf.config_id,
-								params->ext.get_conf.data_off_size,
-								params->ext.get_conf.fragment,
-								params->ext.get_conf.fragment_size);
-			break;
-
-		case MODULE_CMD_SET_PROCMOD:
-			params->status = ops->set_processing_mode(params->mod,
-								  params->ext.proc_mode.mode);
-			break;
-
-		case MODULE_CMD_GET_PROCMOD:
-			params->ext.proc_mode.mode = ops->get_processing_mode(params->mod);
-			break;
-
-		case MODULE_CMD_TRIGGER:
-			params->status = ops->trigger(params->mod, params->ext.trigger_data);
-			break;
-
-		default:
-			params->status = EINVAL;
-			break;
-		}
+		userspace_proxy_handle_request(params->mod, params);
 		k_msgq_put(wd->tmp_out_msgq, params, K_FOREVER);
 
 		k_yield();
