@@ -36,17 +36,6 @@ DECLARE_TR_CTX(modules_user_tr, SOF_UUID(modules_user_uuid), LOG_LEVEL_INFO);
 #define MSGQ_LEN	1
 
 K_APPMEM_PARTITION_DEFINE(ipc_partition);
-#define MAX_PARAM_SIZE	0x200
-
-struct user_worker_data {
-	struct k_work_user work_item;		/* ipc worker workitem			*/
-	struct k_msgq *tmp_in_msgq;				/* pointer to input message queue	*/
-	struct k_msgq *tmp_out_msgq;			/* pointer to output message queue	*/
-	k_tid_t ipc_worker_tid;			/* ipc worker thread ID			*/
-	uint8_t ipc_params[MAX_PARAM_SIZE];	/* ipc parameter buffer			*/
-	uint32_t module_ref_cnt;		/* module reference count		*/
-	void *p_worker_stack;			/* pointer to worker stack		*/
-};
 
 struct user_security_domain {
 	struct k_work_user_q ipc_user_work_q;
@@ -112,6 +101,18 @@ struct module_params {
 		struct bind_info			*bind_data;
 		int					trigger_data;
 	} ext;
+};
+
+#define MAX_PARAM_SIZE	sizeof(struct module_params)
+
+struct user_worker_data {
+	struct k_work_user work_item;		/* ipc worker workitem			*/
+	struct k_msgq *tmp_in_msgq;				/* pointer to input message queue	*/
+	struct k_msgq *tmp_out_msgq;			/* pointer to output message queue	*/
+	k_tid_t ipc_worker_tid;			/* ipc worker thread ID			*/
+	uint8_t ipc_params[MAX_PARAM_SIZE];	/* ipc parameter buffer			*/
+	uint32_t module_ref_cnt;		/* module reference count		*/
+	void *p_worker_stack;			/* pointer to worker stack		*/
 };
 
 static const struct module_interface userspace_proxy_adapter_interface;
@@ -500,6 +501,7 @@ int userspace_proxy_create(struct userspace_context **user_ctx, const struct com
 {
 	struct userspace_context *user;
 	struct k_mem_domain *domain;
+	struct module_params params;
 	int ret;
 
 	tr_dbg(&modules_user_tr, "userspace create");
@@ -528,15 +530,13 @@ int userspace_proxy_create(struct userspace_context **user_ctx, const struct com
 	if (ret)
 		goto error_dom;
 	
-	struct user_worker_data *wr_data = user->wrk_ctx;
-	struct module_params *params = (struct module_params *)wr_data->ipc_params;
-	params->ext.agent.start_fn = start_fn;
-	params->ext.agent.entry_point = entry_point;
-	params->ext.agent.module_id = module_id;
-	params->ext.agent.instance_id = instance_id;
-	params->ext.agent.core_id = core_id;
-	params->ext.agent.log_handle = log_handle;
-	params->ext.agent.mod_cfg = *mod_cfg;
+	params.ext.agent.start_fn = start_fn;
+	params.ext.agent.entry_point = entry_point;
+	params.ext.agent.module_id = module_id;
+	params.ext.agent.instance_id = instance_id;
+	params.ext.agent.core_id = core_id;
+	params.ext.agent.log_handle = log_handle;
+	params.ext.agent.mod_cfg = *mod_cfg;
 
 	/* Add cfg buffer to memory domain */
 	ret = user_add_memory(domain, POINTER_TO_UINT(mod_cfg->data), mod_cfg->size << 2,
@@ -544,7 +544,7 @@ int userspace_proxy_create(struct userspace_context **user_ctx, const struct com
 	if (ret)
 		goto error_worker;
 
-	ret = user_worker_call(user, NULL, MODULE_CMD_AGENT_START, params);
+	ret = user_worker_call(user, NULL, MODULE_CMD_AGENT_START, &params);
 	if (ret)
 		goto error_worker;
 
@@ -554,7 +554,7 @@ int userspace_proxy_create(struct userspace_context **user_ctx, const struct com
 	if (ret)
 		goto error_worker;
 
-	*adapter = params->ext.agent.iface;
+	*adapter = params.ext.agent.iface;
 	*user_ctx = user;
 
 	/* TODO: Must be after assign of adapter! */
@@ -566,7 +566,7 @@ int userspace_proxy_create(struct userspace_context **user_ctx, const struct com
 	uint32_t *imr = (uint32_t *)0x162080;
 	tr_err(&modules_user_tr, "imr %u %u %u %u", imr[0], imr[1], imr[2], imr[3]);
 	
-	return params->status;
+	return params.status;
 
 error_worker:
 	user_worker_free(user);
@@ -600,9 +600,8 @@ void userspace_proxy_destroy(const struct comp_driver *drv, struct userspace_con
  */
 static int userspace_proxy_init(struct processing_module *mod)
 {
-	struct user_worker_data *wr_data = mod->user_ctx->wrk_ctx;
 	struct module_data *md = &mod->priv;
-	struct module_params *params = (struct module_params *)wr_data->ipc_params;
+	struct module_params params;
 	struct k_mem_domain *domain = mod->user_ctx->comp_dom;
 	int ret;
 
@@ -614,7 +613,7 @@ static int userspace_proxy_init(struct processing_module *mod)
 	if (ret < 0)
 		return ret;
 
-	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_INIT, params);
+	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_INIT, &params);
 	if (ret < 0)
 		return ret;
 
@@ -625,7 +624,7 @@ static int userspace_proxy_init(struct processing_module *mod)
 		return ret;
 
 	/* Return status from module code operation. */
-	return params->status;
+	return params.status;
 }
 
 /**
@@ -639,8 +638,7 @@ static int userspace_proxy_prepare(struct processing_module *mod,
 				   struct sof_source **sources, int num_of_sources,
 				   struct sof_sink **sinks, int num_of_sinks)
 {
-	struct user_worker_data *wr_data = mod->user_ctx->wrk_ctx;
-	struct module_params *params = (struct module_params *)wr_data->ipc_params;
+	struct module_params params;
 	int ret;
 
 	comp_dbg(mod->dev, "start");
@@ -648,17 +646,17 @@ static int userspace_proxy_prepare(struct processing_module *mod,
 	if (!mod->user_ctx->interface->prepare)
 		return 0;
 
-	params->ext.proc.sources = sources;
-	params->ext.proc.num_of_sources = num_of_sources;
-	params->ext.proc.sinks = sinks;
-	params->ext.proc.num_of_sinks = num_of_sinks;
+	params.ext.proc.sources = sources;
+	params.ext.proc.num_of_sources = num_of_sources;
+	params.ext.proc.sinks = sinks;
+	params.ext.proc.num_of_sinks = num_of_sinks;
 
-	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_PREPARE, params);
+	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_PREPARE, &params);
 	if (ret < 0)
 		return ret;
 
 	/* Return status from module code operation. */
-	return params->status;
+	return params.status;
 }
 
 /**
@@ -691,8 +689,7 @@ static int userspace_proxy_process(struct processing_module *mod, struct sof_sou
  */
 static int userspace_proxy_reset(struct processing_module *mod)
 {
-	struct user_worker_data *wr_data = mod->user_ctx->wrk_ctx;
-	struct module_params *params = (struct module_params *)wr_data->ipc_params;
+	struct module_params params;
 	int ret;
 
 	comp_dbg(mod->dev, "start");
@@ -700,12 +697,12 @@ static int userspace_proxy_reset(struct processing_module *mod)
 	if (!mod->user_ctx->interface->reset)
 		return 0;
 
-	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_RESET, params);
+	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_RESET, &params);
 	if (ret < 0)
 		return ret;
 
 	/* Return status from module code operation. */
-	return params->status;
+	return params.status;
 }
 
 /**
@@ -718,15 +715,14 @@ static int userspace_proxy_reset(struct processing_module *mod)
  */
 static int userspace_proxy_free(struct processing_module *mod)
 {
-	struct user_worker_data *wr_data = mod->user_ctx->wrk_ctx;
-	struct module_params *params = (struct module_params *)wr_data->ipc_params;
+	struct module_params params;
 	int ret;
 
 	comp_dbg(mod->dev, "start");
-	params->status = 0;
+	params.status = 0;
 
 	if (mod->user_ctx->interface->free) {
-		ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_FREE, params);
+		ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_FREE, &params);
 		if (ret < 0)
 			return ret;
 	}
@@ -736,7 +732,7 @@ static int userspace_proxy_free(struct processing_module *mod)
 	mod->user_ctx = NULL;
 
 	/* Return status from module code operation. */
-	return params->status;
+	return params.status;
 }
 
 /**
@@ -763,8 +759,7 @@ static int userspace_proxy_set_configuration(struct processing_module *mod, uint
 					     size_t fragment_size, uint8_t *response,
 					     size_t response_size)
 {
-	struct user_worker_data *wr_data = mod->user_ctx->wrk_ctx;
-	struct module_params *params = (struct module_params *)wr_data->ipc_params;
+	struct module_params params;
 	struct k_mem_domain *domain = mod->user_ctx->comp_dom;
 	int ret;
 
@@ -773,13 +768,13 @@ static int userspace_proxy_set_configuration(struct processing_module *mod, uint
 	if (!mod->user_ctx->interface->set_configuration)
 		return 0;
 
-	params->ext.set_conf.config_id = config_id;
-	params->ext.set_conf.pos = pos;
-	params->ext.set_conf.data_off_size = data_offset_size;
-	params->ext.set_conf.fragment = fragment;
-	params->ext.set_conf.fragment_size = fragment_size;
-	params->ext.set_conf.response = response;
-	params->ext.set_conf.response_size = response_size;
+	params.ext.set_conf.config_id = config_id;
+	params.ext.set_conf.pos = pos;
+	params.ext.set_conf.data_off_size = data_offset_size;
+	params.ext.set_conf.fragment = fragment;
+	params.ext.set_conf.fragment_size = fragment_size;
+	params.ext.set_conf.response = response;
+	params.ext.set_conf.response_size = response_size;
 
 	/* Give read access to the fragment buffer (It should be 4kB)*/
 	ret = user_add_memory(domain, POINTER_TO_UINT(fragment), fragment_size,
@@ -797,9 +792,9 @@ static int userspace_proxy_set_configuration(struct processing_module *mod, uint
 		goto err_resp;
 	}
 
-	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_SET_CONF, params);
+	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_SET_CONF, &params);
 	if (!ret)
-		ret = params->status;
+		ret = params.status;
 
 	/* Remove access to buffers */
 	user_remove_memory(domain, POINTER_TO_UINT(response), response_size);
@@ -829,8 +824,7 @@ static int userspace_proxy_get_configuration(struct processing_module *mod, uint
 					     uint32_t *data_offset_size, uint8_t *fragment,
 					     size_t fragment_size)
 {
-	struct user_worker_data *wr_data = mod->user_ctx->wrk_ctx;
-	struct module_params *params = (struct module_params *)wr_data->ipc_params;
+	struct module_params params;
 	struct k_mem_domain *domain = mod->user_ctx->comp_dom;
 	int ret;
 
@@ -839,10 +833,10 @@ static int userspace_proxy_get_configuration(struct processing_module *mod, uint
 	if (!mod->user_ctx->interface->get_configuration)
 		return -EIO;
 
-	params->ext.get_conf.config_id = config_id;
-	params->ext.get_conf.data_off_size = data_offset_size;
-	params->ext.get_conf.fragment = fragment;
-	params->ext.get_conf.fragment_size = fragment_size;
+	params.ext.get_conf.config_id = config_id;
+	params.ext.get_conf.data_off_size = data_offset_size;
+	params.ext.get_conf.fragment = fragment;
+	params.ext.get_conf.fragment_size = fragment_size;
 
 	/* Give write access to the fragment buffer (It should be 4kB)*/
 	ret = user_add_memory(domain, POINTER_TO_UINT(fragment), fragment_size,
@@ -852,7 +846,7 @@ static int userspace_proxy_get_configuration(struct processing_module *mod, uint
 		return ret;
 	}
 
-	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_GET_CONF, params);
+	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_GET_CONF, &params);
 
 	/* Remove access to the buffer */
 	user_remove_memory(domain, POINTER_TO_UINT(fragment), fragment_size);
@@ -861,7 +855,7 @@ static int userspace_proxy_get_configuration(struct processing_module *mod, uint
 		return ret;
 
 	/* Return status from module code operation. */
-	return params->status;
+	return params.status;
 }
 
 /**
@@ -876,8 +870,7 @@ static int userspace_proxy_get_configuration(struct processing_module *mod, uint
 static int userspace_proxy_set_processing_mode(struct processing_module *mod,
 						enum module_processing_mode mode)
 {
-	struct user_worker_data *wr_data = mod->user_ctx->wrk_ctx;
-	struct module_params *params = (struct module_params *)wr_data->ipc_params;
+	struct module_params params;
 	int ret;
 
 	comp_dbg(mod->dev, "start");
@@ -885,13 +878,13 @@ static int userspace_proxy_set_processing_mode(struct processing_module *mod,
 	if (!mod->user_ctx->interface->set_processing_mode)
 		return 0;
 
-	params->ext.proc_mode.mode = mode;
-	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_SET_PROCMOD, params);
+	params.ext.proc_mode.mode = mode;
+	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_SET_PROCMOD, &params);
 	if (ret < 0)
 		return ret;
 
 	/* Return status from module code operation. */
-	return params->status;
+	return params.status;
 }
 
 /**
@@ -904,8 +897,7 @@ static int userspace_proxy_set_processing_mode(struct processing_module *mod,
  */
 static enum module_processing_mode userspace_proxy_get_processing_mode(struct processing_module *mod)
 {
-	struct user_worker_data *wr_data = mod->user_ctx->wrk_ctx;
-	struct module_params *params = (struct module_params *)wr_data->ipc_params;
+	struct module_params params;
 	int ret;
 
 	comp_dbg(mod->dev, "start");
@@ -913,12 +905,12 @@ static enum module_processing_mode userspace_proxy_get_processing_mode(struct pr
 	if (!mod->user_ctx->interface->get_processing_mode)
 		return -EIO;
 
-	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_GET_PROCMOD, params);
+	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_GET_PROCMOD, &params);
 	if (ret < 0)
 		return ret;
 
 	/* Return status from module code operation. */
-	return params->ext.proc_mode.mode;
+	return params.ext.proc_mode.mode;
 }
 
 /**
@@ -935,8 +927,7 @@ static bool userspace_proxy_is_ready_to_process(struct processing_module *mod,
 						struct sof_sink **sinks,
 						int num_of_sinks)
 {
-	struct user_worker_data *wr_data = mod->user_ctx->wrk_ctx;
-	struct module_params *params = (struct module_params *)wr_data->ipc_params;
+	struct module_params params;
 	int ret;
 
 	comp_dbg(mod->dev, "start");
@@ -945,18 +936,18 @@ static bool userspace_proxy_is_ready_to_process(struct processing_module *mod,
 		return generic_module_is_ready_to_process(mod, sources, num_of_sources, sinks,
 							  num_of_sinks);
 
-	params->ext.proc.sources = sources;
-	params->ext.proc.num_of_sources = num_of_sources;
-	params->ext.proc.sinks = sinks;
-	params->ext.proc.num_of_sinks = num_of_sinks;
+	params.ext.proc.sources = sources;
+	params.ext.proc.num_of_sources = num_of_sources;
+	params.ext.proc.sinks = sinks;
+	params.ext.proc.num_of_sinks = num_of_sinks;
 
-	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_PROC_READY, params);
+	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_PROC_READY, &params);
 	if (ret < 0)
 		return generic_module_is_ready_to_process(mod, sources, num_of_sources, sinks,
 							  num_of_sinks);
 
 	/* Return status from module code operation. */
-	return params->status;
+	return params.status;
 }
 
 /**
@@ -970,8 +961,7 @@ static bool userspace_proxy_is_ready_to_process(struct processing_module *mod,
  */
 static int userspace_proxy_bind(struct processing_module *mod, struct bind_info *bind_data)
 {
-	struct user_worker_data *wr_data = mod->user_ctx->wrk_ctx;
-	struct module_params *params = (struct module_params *)wr_data->ipc_params;
+	struct module_params params;
 	int ret;
 
 	comp_dbg(mod->dev, "start");
@@ -979,13 +969,13 @@ static int userspace_proxy_bind(struct processing_module *mod, struct bind_info 
 	if (!mod->user_ctx->interface->bind)
 		return 0;
 
-	params->ext.bind_data = bind_data;
-	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_BIND, params);
+	params.ext.bind_data = bind_data;
+	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_BIND, &params);
 	if (ret < 0)
 		return ret;
 
 	/* Return status from module code operation. */
-	return params->status;
+	return params.status;
 }
 
 /**
@@ -999,8 +989,7 @@ static int userspace_proxy_bind(struct processing_module *mod, struct bind_info 
  */
 static int userspace_proxy_unbind(struct processing_module *mod, struct bind_info *unbind_data)
 {
-	struct user_worker_data *wr_data = mod->user_ctx->wrk_ctx;
-	struct module_params *params = (struct module_params *)wr_data->ipc_params;
+	struct module_params params;
 	int ret;
 
 	comp_dbg(mod->dev, "start");
@@ -1008,13 +997,13 @@ static int userspace_proxy_unbind(struct processing_module *mod, struct bind_inf
 	if (!mod->user_ctx->interface->unbind)
 		return 0;
 
-	params->ext.bind_data = unbind_data;
-	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_UNBIND, params);
+	params.ext.bind_data = unbind_data;
+	ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_UNBIND, &params);
 	if (ret < 0)
 		return ret;
 
 	/* Return status from module code operation. */
-	return params->status;
+	return params.status;
 }
 
 /**
@@ -1027,18 +1016,17 @@ static int userspace_proxy_unbind(struct processing_module *mod, struct bind_inf
  */
 static int userspace_proxy_trigger(struct processing_module *mod, int cmd)
 {
-	struct user_worker_data *wr_data = mod->user_ctx->wrk_ctx;
-	struct module_params *params = (struct module_params *)wr_data->ipc_params;
+	struct module_params params;
 	int ret = 0;
 
 	comp_dbg(mod->dev, "start");
 
 	if (mod->user_ctx->interface->trigger) {
-		params->ext.trigger_data = cmd;
-		ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_TRIGGER, params);
+		params.ext.trigger_data = cmd;
+		ret = user_worker_call(mod->user_ctx, mod, MODULE_CMD_TRIGGER, &params);
 		if (ret < 0)
 			return ret;
-		ret = params->status;
+		ret = params.status;
 	}
 
 	if (!ret)
