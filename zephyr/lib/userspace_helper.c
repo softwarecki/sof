@@ -154,7 +154,10 @@ int user_memory_init_shared(k_tid_t thread_id, struct processing_module *mod)
 
 	return k_mem_domain_add_thread(comp_dom, thread_id);
 }
+LOG_MODULE_REGISTER(modules_user_tr2, CONFIG_SOF_LOG_LEVEL);
 
+//DECLARE_TR_CTX(modules_user_tr2, SOF_UUID(modules_user_uuid), LOG_LEVEL_INFO);
+extern struct tr_ctx modules_user_tr;
 int user_add_memory(struct k_mem_domain *domain, uintptr_t addr, size_t size, uint32_t attr)
 {
 	uintptr_t addr_aligned;
@@ -167,6 +170,7 @@ int user_add_memory(struct k_mem_domain *domain, uintptr_t addr, size_t size, ui
 	part.start = addr_aligned;
 	part.size = size_aligned;
 	part.attr = attr;
+	tr_err(&modules_user_tr, "%p %zu, %p, %zu", (uint32_t)addr, size, (uint32_t)addr_aligned, size_aligned);
 	ret = k_mem_domain_add_partition(domain, &part);
 	/* -EINVAL means that given page is already in the domain */
 	/* Not an error case for us. */
@@ -187,6 +191,7 @@ int user_remove_memory(struct k_mem_domain *domain, uintptr_t addr, size_t size)
 	struct k_mem_partition part;
 	part.start = addr_aligned;
 	part.size = size_aligned;
+	tr_err(&modules_user_tr, "%p %zu, %p, %zu", (uint32_t)addr, size, (uint32_t)addr_aligned, size_aligned);
 	ret = k_mem_domain_remove_partition(domain, &part);
 	/* -ENOENT means that given partition is already removed */
 	/* Not an error case for us. */
