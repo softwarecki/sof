@@ -22,8 +22,10 @@
 #include <zephyr/sys/mutex.h>
 #include <sof/lib/notifier.h>
 #include <ipc4/base_fw.h>
+#include <sof/audio/module_adapter/library/userspace_proxy.h>
 
 #include <zephyr/kernel/thread.h>
+#include <zephyr/kernel.h>
 
 LOG_MODULE_REGISTER(dp_schedule, CONFIG_SOF_LOG_LEVEL);
 SOF_DEFINE_REG_UUID(dp_sched);
@@ -42,8 +44,8 @@ struct task_dp_pdata {
 	uint32_t deadline_clock_ticks;	/* dp module deadline in Zephyr ticks */
 	k_thread_stack_t __sparse_cache *p_stack;	/* pointer to thread stack */
 	size_t stack_size;		/* size of the stack in bytes */
-	struct k_sem *sem;		/* pointer to semaphore for task scheduling */
-	struct k_sem sem_struct;	/* semaphore for task scheduling for kernel threads */
+	struct k_poll_signal *signal;	/* pointer to signal to wake up the thread */
+	struct k_poll_signal signal_struct;	/* signal to wake up the thread */
 	struct processing_module *mod;	/* the module to be scheduled */
 	uint32_t ll_cycles_to_start;    /* current number of LL cycles till delayed start */
 };
@@ -298,7 +300,7 @@ void scheduler_dp_ll_tick(void *receiver_data, enum notify_id event_type, void *
 
 				/* trigger the task */
 				curr_task->state = SOF_TASK_STATE_RUNNING;
-				k_sem_give(pdata->sem);
+				k_poll_signal_raise(pdata->signal, 0);
 			}
 		}
 	}
@@ -323,7 +325,7 @@ static int scheduler_dp_task_cancel(void *data, struct task *task)
 		schedule_task_cancel(&dp_sch->ll_tick_src);
 
 	/* if the task is waiting on a semaphore - let it run and self-terminate */
-	k_sem_give(pdata->sem);
+	k_poll_signal_raise(pdata->signal, 1);
 	scheduler_dp_unlock(lock_key);
 
 	/* wait till the task has finished, if there was any task created */
@@ -349,8 +351,8 @@ static int scheduler_dp_task_free(void *data, struct task *task)
 	}
 
 #ifdef CONFIG_USERSPACE
-	if (pdata->sem != &pdata->sem_struct)
-		k_object_free(pdata->sem);
+	if (pdata->signal != &pdata->signal_struct)
+		k_object_free(pdata->signal);
 	if (pdata->thread != &pdata->thread_struct)
 		k_object_free(pdata->thread);
 #endif
@@ -370,52 +372,79 @@ static void dp_thread_fn(void *p1, void *p2, void *p3)
 	(void)p2;
 	(void)p3;
 	struct task_dp_pdata *task_pdata = task->priv_data;
+	struct processing_module *mod = task_pdata->mod;
 	unsigned int lock_key;
 	enum task_state state;
 	bool task_stop;
+	int ret;
+
+	struct k_poll_event events[] = {
+		K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SIGNAL, K_POLL_MODE_NOTIFY_ONLY,
+					 task_pdata->signal),
+#ifdef CONFIG_USERSPACE
+		{}
+#endif
+	};
+	int events_count = 1;
+
+#ifdef CONFIG_USERSPACE
+	if (mod->user_ctx) {
+		userspace_proxy_init_poll_event(mod, &events[1]);
+		events_count = 2;
+	}
+#endif
 
 	do {
-		/*
-		 * the thread is started immediately after creation, it will stop on semaphore
-		 * Semaphore will be released once the task is ready to process
+		/* the thread is started immediately after creation, it will stop on poll.
+		 * Signal will be raised once the task is ready to process
 		 */
-		k_sem_take(task_pdata->sem, K_FOREVER);
+		ret = k_poll(events, events_count, K_FOREVER);
+		if (events[0].state == K_POLL_STATE_SIGNALED) {
+			events[0].state = K_POLL_STATE_NOT_READY;
+			k_poll_signal_reset(task_pdata->signal);
 
-		if (task->state == SOF_TASK_STATE_RUNNING)
-			state = task_run(task);
-		else
-			state = task->state;	/* to avoid undefined variable warning */
+			if (task->state == SOF_TASK_STATE_RUNNING)
+				state = task_run(task);
+			else
+				state = task->state;	/* to avoid undefined variable warning */
 
-		lock_key = scheduler_dp_lock(task->core);
-		/*
+			lock_key = scheduler_dp_lock(task->core);
+			/*
 		 * check if task is still running, may have been canceled by external call
 		 * if not, set the state returned by run procedure
 		 */
-		if (task->state == SOF_TASK_STATE_RUNNING) {
-			task->state = state;
-			switch (state) {
-			case SOF_TASK_STATE_RESCHEDULE:
-				/* mark to reschedule, schedule time is already calculated */
-				task->state = SOF_TASK_STATE_QUEUED;
-				break;
+			if (task->state == SOF_TASK_STATE_RUNNING) {
+				task->state = state;
+				switch (state) {
+				case SOF_TASK_STATE_RESCHEDULE:
+					/* mark to reschedule, schedule time is already calculated */
+					task->state = SOF_TASK_STATE_QUEUED;
+					break;
 
-			case SOF_TASK_STATE_CANCEL:
-			case SOF_TASK_STATE_COMPLETED:
-				/* remove from scheduling */
-				list_item_del(&task->list);
-				break;
+				case SOF_TASK_STATE_CANCEL:
+				case SOF_TASK_STATE_COMPLETED:
+					/* remove from scheduling */
+					list_item_del(&task->list);
+					break;
 
-			default:
-				/* illegal state, serious defect, won't happen */
-				k_panic();
+				default:
+					/* illegal state, serious defect, won't happen */
+					k_panic();
+				}
 			}
+
+			/* if true exit the while loop, terminate the thread */
+			task_stop = task->state == SOF_TASK_STATE_COMPLETED ||
+				task->state == SOF_TASK_STATE_CANCEL;
+
+			scheduler_dp_unlock(lock_key);
 		}
-
-		/* if true exit the while loop, terminate the thread */
-		task_stop = task->state == SOF_TASK_STATE_COMPLETED ||
-			task->state == SOF_TASK_STATE_CANCEL;
-
-		scheduler_dp_unlock(lock_key);
+#ifdef CONFIG_USERSPACE
+		if (events[1].state == K_POLL_STATE_MSGQ_DATA_AVAILABLE) {
+			events[1].state = K_POLL_STATE_NOT_READY;
+			userspace_proxy_handle_request(mod);
+		}
+#endif
 	} while (!task_stop);
 
 	/* call task_complete  */
@@ -451,7 +480,7 @@ static int scheduler_dp_task_shedule(void *data, struct task *task, uint64_t sta
 		return -ECHILD;
 	}
 
-	k_thread_access_grant(pdata->thread_id, pdata->sem);
+	k_thread_access_grant(pdata->thread_id, pdata->signal);
 	scheduler_dp_grant(pdata->thread_id, cpu_get_id());
 	/* pin the thread to specific core */
 	ret = k_thread_cpu_pin(pdata->thread_id, task->core);
@@ -470,8 +499,8 @@ static int scheduler_dp_task_shedule(void *data, struct task *task, uint64_t sta
 	}
 #endif /* CONFIG_USERSPACE */
 
-	/* start the thread, it should immediately stop at a semaphore, so clean it */
-	k_sem_init(pdata->sem, 0, 1);
+	/* start the thread, it should immediately stop at a poll */
+	k_poll_signal_init(pdata->signal);
 	k_thread_start(pdata->thread_id);
 
 	/* if there's no DP tasks scheduled yet, run ll tick source task */
@@ -587,16 +616,16 @@ int scheduler_dp_task_init(struct task **task,
 		goto err;
 	}
 
-	/* Point to ksem semaphore for kernel threads synchronization */
-	/* It will be overwritten for K_USER threads to dynamic ones.  */
-	task_memory->pdata.sem = &task_memory->pdata.sem_struct;
+	/* Point to local kernel objects. It will be overwritten for K_USER threads to dynamic ones.
+	 */
+	task_memory->pdata.signal= &task_memory->pdata.signal_struct;
 	task_memory->pdata.thread = &task_memory->pdata.thread_struct;
 
 #ifdef CONFIG_USERSPACE
 	if (options & K_USER) {
-		task_memory->pdata.sem = k_object_alloc(K_OBJ_SEM);
-		if (!task_memory->pdata.sem) {
-			tr_err(&dp_tr, "Semaphore object allocation failed");
+		task_memory->pdata.signal = k_object_alloc(K_OBJ_POLL_SIGNAL);
+		if (!task_memory->pdata.signal) {
+			tr_err(&dp_tr, "Signal object allocation failed");
 			ret = -ENOMEM;
 			goto err;
 		}
@@ -630,7 +659,7 @@ err:
 		tr_err(&dp_tr, "user_stack_free failed!");
 
 	/* k_object_free looks for a pointer in the list, any invalid value can be passed */
-	k_object_free(task_memory->pdata.sem);
+	k_object_free(task_memory->pdata.signal);
 	k_object_free(task_memory->pdata.thread);
 	rfree(task_memory);
 	return ret;

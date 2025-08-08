@@ -146,7 +146,7 @@ uint32_t ptable_size(struct k_mem_domain *domain)
 	return cnt;
 }
 
-void userspace_proxy_handle_request(struct processing_module *mod, struct module_params *params)
+void userspace_proxy_handle_request_params(struct processing_module *mod, struct module_params *params)
 {
 	const struct module_interface *ops;
 	
@@ -237,6 +237,22 @@ void userspace_proxy_handle_request(struct processing_module *mod, struct module
 	}
 }
 
+void userspace_proxy_init_poll_event(struct processing_module *mod, struct k_poll_event *event)
+{
+	k_poll_event_init(event, K_POLL_TYPE_MSGQ_DATA_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY,
+			  mod->user_ctx->in_msgq);
+}
+
+void userspace_proxy_handle_request(struct processing_module *mod)
+{
+	struct module_params params;
+	k_msgq_get(mod->user_ctx->in_msgq, &params, K_FOREVER);
+
+	userspace_proxy_handle_request_params(mod, &params);
+	k_msgq_put(mod->user_ctx->out_msgq, &params, K_FOREVER);
+
+}
+
 static void user_worker_handler(struct k_work_user *work_item)
 {
 	struct user_worker_data *wd = CONTAINER_OF(work_item, struct user_worker_data, work_item);
@@ -244,7 +260,7 @@ static void user_worker_handler(struct k_work_user *work_item)
 	while(1) {
 		k_msgq_get(wd->tmp_in_msgq, params, K_FOREVER);
 
-		userspace_proxy_handle_request(params->mod, params);
+		userspace_proxy_handle_request_params(params->mod, params);
 		k_msgq_put(wd->tmp_out_msgq, params, K_FOREVER);
 
 		k_yield();

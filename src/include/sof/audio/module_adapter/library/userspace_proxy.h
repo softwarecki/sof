@@ -67,6 +67,10 @@ int userspace_proxy_create(struct userspace_context **user_ctx, const struct com
 */
 void userspace_proxy_destroy(const struct comp_driver *drv, struct userspace_context *user_ctx);
 
+void userspace_proxy_handle_request(struct processing_module *mod);
+
+void userspace_proxy_init_poll_event(struct processing_module *mod, struct k_poll_event *event);
+
 #else
 
 #define APP_USER_DATA
