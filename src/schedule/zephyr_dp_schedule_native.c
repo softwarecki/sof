@@ -64,7 +64,7 @@ void scheduler_dp_recalculate(struct scheduler_dp_data *dp_sch, bool is_ll_post_
 						pdata->ll_cycles_to_start = 1;
 				}
 				trigger_task = true;
-				k_sem_give(pdata->sem);
+				k_event_post(pdata->event, DP_EVENT_PROCESS);
 			}
 		}
 		if (curr_task->state == SOF_TASK_STATE_RUNNING) {
@@ -108,6 +108,7 @@ void dp_thread_fn(void *p1, void *p2, void *p3)
 	struct scheduler_dp_data *dp_sch = NULL;
 	unsigned int lock_key;
 	enum task_state state;
+	uint32_t events;
 	bool task_stop;
 
 	if (!(task->flags & K_USER))
@@ -118,7 +119,9 @@ void dp_thread_fn(void *p1, void *p2, void *p3)
 		 * the thread is started immediately after creation, it will stop on semaphore
 		 * Semaphore will be released once the task is ready to process
 		 */
-		k_sem_take(task_pdata->sem, K_FOREVER);
+		events = k_event_wait_safe(task_pdata->event,
+					   DP_EVENT_PROCESS | DP_EVENT_CANCEL,
+					   false, K_FOREVER);
 
 		if (task->state == SOF_TASK_STATE_RUNNING)
 			state = task_run(task);
