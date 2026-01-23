@@ -3,12 +3,14 @@
  * Copyright(c) 2025 Intel Corporation. All rights reserved.
  *
  * Author: Marcin Szkudlinski
+ *	   Adrian Warecki
  */
 
 #include <rtos/task.h>
 
 #include <sof/audio/module_adapter/module/generic.h>
 #include <sof/audio/module_adapter/library/userspace_proxy.h>
+#include <sof/audio/module_adapter/library/userspace_proxy_user.h>
 #include <sof/common.h>
 #include <sof/list.h>
 #include <sof/schedule/ll_schedule_domain.h>
@@ -115,6 +117,7 @@ void dp_thread_fn(void *p1, void *p2, void *p3)
 	unsigned int lock_key;
 	enum task_state state;
 	bool task_stop;
+	uint32_t event;
 
 	if (!(task->flags & K_USER))
 		dp_sch = scheduler_get_data(SOF_SCHEDULE_DP);
@@ -124,13 +127,22 @@ void dp_thread_fn(void *p1, void *p2, void *p3)
 		 * the thread is started immediately after creation, it will stop on event.
 		 * Event will be signalled once the task is ready to process.
 		 */
-		k_event_wait_safe(task_pdata->event, DP_TASK_EVENT_PROCESS | DP_TASK_EVENT_CANCEL,
-				  false, K_FOREVER);
+		event = k_event_wait_safe(task_pdata->event, DP_TASK_EVENT_PROCESS |
+					  DP_TASK_EVENT_CANCEL | DP_TASK_EVENT_IPC, false,
+					  K_FOREVER);
 
-		if (task->state == SOF_TASK_STATE_RUNNING)
-			state = task_run(task);
-		else
-			state = task->state;	/* to avoid undefined variable warning */
+		state = task->state;	/* to avoid undefined variable warning */
+		if (task->state == SOF_TASK_STATE_RUNNING) {
+			switch (event) {
+			case DP_TASK_EVENT_PROCESS:
+				state = task_run(task);
+				break;
+			case DP_TASK_EVENT_IPC:
+				assert(task_pdata->ipc_work_item);
+				userspace_proxy_worker_handler(task_pdata->ipc_work_item);
+				continue;
+			}
+		}
 
 		lock_key = scheduler_dp_lock(task->core);
 		/*
@@ -293,6 +305,11 @@ int scheduler_dp_task_init(struct task **task,
 	/* start the thread, it should immediately stop at an event */
 	k_event_init(pdata->event);
 	k_thread_start(pdata->thread_id);
+
+#if IS_ENABLED(CONFIG_SOF_USERSPACE_PROXY) && \
+    IS_ENABLED(CONFIG_SOF_USERSPACE_MOD_IPC_BY_DP_THREAD)
+	pdata->ipc_work_item = userspace_proxy_register_ipc_handler(mod, pdata->event);
+#endif
 
 	/* success, fill output parameter */
 	*task = &task_memory->task;

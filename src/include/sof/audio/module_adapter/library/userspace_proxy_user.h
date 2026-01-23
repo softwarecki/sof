@@ -13,7 +13,7 @@ struct module_agent_params {
 	system_agent_start_fn start_fn;
 	struct system_agent_params params;
 	byte_array_t mod_cfg;
-	const void *out_interface;
+	void *out_interface;
 };
 
 struct module_large_cfg_set_params {
