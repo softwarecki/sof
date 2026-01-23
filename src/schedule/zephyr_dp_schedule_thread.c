@@ -3,12 +3,14 @@
  * Copyright(c) 2025 Intel Corporation. All rights reserved.
  *
  * Author: Marcin Szkudlinski
+ *	   Adrian Warecki
  */
 
 #include <rtos/task.h>
 
 #include <sof/audio/module_adapter/module/generic.h>
 #include <sof/audio/module_adapter/library/userspace_proxy.h>
+#include <sof/audio/module_adapter/library/userspace_proxy_user.h>
 #include <sof/common.h>
 #include <sof/list.h>
 #include <sof/schedule/ll_schedule_domain.h>
@@ -115,6 +117,7 @@ void dp_thread_fn(void *p1, void *p2, void *p3)
 	unsigned int lock_key;
 	enum task_state state;
 	bool task_stop;
+	uint32_t event;
 
 	if (!(task->flags & K_USER))
 		dp_sch = scheduler_get_data(SOF_SCHEDULE_DP);
@@ -124,50 +127,62 @@ void dp_thread_fn(void *p1, void *p2, void *p3)
 		 * the thread is started immediately after creation, it will stop on event.
 		 * Event will be signalled once the task is ready to process.
 		 */
-		k_event_wait_safe(task_pdata->event, DP_TASK_EVENT_PROCESS | DP_TASK_EVENT_CANCEL,
-				  false, K_FOREVER);
+		event = k_event_wait_safe(task_pdata->event, DP_TASK_EVENT_PROCESS |
+					  DP_TASK_EVENT_CANCEL | DP_TASK_EVENT_IPC, false,
+					  K_FOREVER);
 
-		if (task->state == SOF_TASK_STATE_RUNNING)
-			state = task_run(task);
-		else
+#if IS_ENABLED(CONFIG_SOF_USERSPACE_MOD_IPC_BY_DP_THREAD)
+		if (event & DP_TASK_EVENT_IPC) {
+			assert(task_pdata->ipc_work_item);
+			userspace_proxy_worker_handler(task_pdata->ipc_work_item);
+		}
+#endif
+
+		if (event & DP_TASK_EVENT_PROCESS) {
 			state = task->state;	/* to avoid undefined variable warning */
+			if (task->state == SOF_TASK_STATE_RUNNING && event & DP_TASK_EVENT_PROCESS)
+				state = task_run(task);
 
-		lock_key = scheduler_dp_lock(task->core);
-		/*
-		 * check if task is still running, may have been canceled by external call
-		 * if not, set the state returned by run procedure
-		 */
-		if (task->state == SOF_TASK_STATE_RUNNING) {
-			task->state = state;
-			switch (state) {
-			case SOF_TASK_STATE_RESCHEDULE:
-				/* mark to reschedule, schedule time is already calculated */
-				task->state = SOF_TASK_STATE_QUEUED;
-				break;
+			lock_key = scheduler_dp_lock(task->core);
+			/*
+			 * check if task is still running, may have been canceled by external call
+			 * if not, set the state returned by run procedure
+			 */
+			if (task->state == SOF_TASK_STATE_RUNNING) {
+				task->state = state;
+				switch (state) {
+				case SOF_TASK_STATE_RESCHEDULE:
+					/* mark to reschedule, schedule time is already calculated */
+					task->state = SOF_TASK_STATE_QUEUED;
+					break;
 
-			case SOF_TASK_STATE_CANCEL:
-			case SOF_TASK_STATE_COMPLETED:
-				/* remove from scheduling */
-				list_item_del(&task->list);
-				break;
+				case SOF_TASK_STATE_CANCEL:
+				case SOF_TASK_STATE_COMPLETED:
+					/* remove from scheduling */
+					list_item_del(&task->list);
+					break;
 
-			default:
-				/* illegal state, serious defect, won't happen */
-				k_panic();
+				default:
+					/* illegal state, serious defect, won't happen */
+					k_panic();
+				}
 			}
+
+			/* if true exit the while loop, terminate the thread */
+			task_stop = task->state == SOF_TASK_STATE_COMPLETED ||
+				task->state == SOF_TASK_STATE_CANCEL;
+			/* recalculate all DP tasks readiness and deadlines
+			 * TODO: it should be for all tasks, for all cores
+			 * currently its limited to current core only
+			 */
+			if (dp_sch)
+				scheduler_dp_recalculate(dp_sch, false);
+
+			scheduler_dp_unlock(lock_key);
 		}
 
-		/* if true exit the while loop, terminate the thread */
-		task_stop = task->state == SOF_TASK_STATE_COMPLETED ||
-			task->state == SOF_TASK_STATE_CANCEL;
-		/* recalculate all DP tasks readiness and deadlines
-		 * TODO: it should be for all tasks, for all cores
-		 * currently its limited to current core only
-		 */
-		if (dp_sch)
-			scheduler_dp_recalculate(dp_sch, false);
-
-		scheduler_dp_unlock(lock_key);
+		if (event & DP_TASK_EVENT_CANCEL) {
+			break;
 	} while (!task_stop);
 
 	/* call task_complete  */
@@ -293,6 +308,10 @@ int scheduler_dp_task_init(struct task **task,
 	/* start the thread, it should immediately stop at an event */
 	k_event_init(pdata->event);
 	k_thread_start(pdata->thread_id);
+
+#if IS_ENABLED(CONFIG_SOF_USERSPACE_MOD_IPC_BY_DP_THREAD)
+	pdata->ipc_work_item = userspace_proxy_register_ipc_handler(mod, pdata->event);
+#endif
 
 	/* success, fill output parameter */
 	*task = &task_memory->task;
