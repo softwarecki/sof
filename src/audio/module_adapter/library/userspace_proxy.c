@@ -64,6 +64,8 @@ struct k_work_user *userspace_proxy_register_ipc_handler(struct processing_modul
 {
 	struct userspace_context * const user_ctx = mod->user_ctx;
 	if (user_ctx) {
+		tr_dbg(&userspace_proxy_tr, "Set DP event %p for module %p",
+		       (void *)event, (void *)mod);
 		user_ctx->dp_event = event;
 		user_ctx->work_item->event = event;
 
