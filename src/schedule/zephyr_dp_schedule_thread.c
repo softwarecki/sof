@@ -131,18 +131,17 @@ void dp_thread_fn(void *p1, void *p2, void *p3)
 					  DP_TASK_EVENT_CANCEL | DP_TASK_EVENT_IPC, false,
 					  K_FOREVER);
 
-		state = task->state;	/* to avoid undefined variable warning */
-		if (task->state == SOF_TASK_STATE_RUNNING) {
-			switch (event) {
-			case DP_TASK_EVENT_PROCESS:
-				state = task_run(task);
-				break;
-			case DP_TASK_EVENT_IPC:
-				assert(task_pdata->ipc_work_item);
-				userspace_proxy_worker_handler(task_pdata->ipc_work_item);
+#if IS_ENABLED(CONFIG_SOF_USERSPACE_MOD_IPC_BY_DP_THREAD)
+		if (event & DP_TASK_EVENT_IPC) {
+			assert(task_pdata->ipc_work_item);
+			userspace_proxy_worker_handler(task_pdata->ipc_work_item);
+			if (!(event ^ DP_TASK_EVENT_IPC))
 				continue;
-			}
 		}
+#endif
+		state = task->state;	/* to avoid undefined variable warning */
+		if (task->state == SOF_TASK_STATE_RUNNING && event & DP_TASK_EVENT_PROCESS)
+			state = task_run(task);
 
 		lock_key = scheduler_dp_lock(task->core);
 		/*
