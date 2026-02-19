@@ -228,6 +228,11 @@ static int userspace_proxy_invoke(struct userspace_context *user_ctx, uint32_t c
 		goto done;
 	}
 #else
+	if (!event) {
+		tr_err(&userspace_proxy_tr, "Event null! ctx %p", user_ctx);
+		ret = -ENOTCONN;
+		goto done;
+	}
 	assert(event);
 	k_event_post(event, DP_TASK_EVENT_IPC);
 #endif
