@@ -5,6 +5,16 @@
 **Status**: Draft  
 **Input**: User description: "DP-to-DP connections and Pipeline 2.0 roadmap: scheduling fixes, buffer abstraction, module binding overhaul — based on handoff TODO list from departing colleague."
 
+## Clarifications
+
+### Session 2026-04-02
+
+- Q: Can P2 (buffer factory / direct binding) development proceed in parallel with P1 (sink/source migration), or must P1 be fully complete first? → A: Parallel per-module — P2 can be developed and tested alongside P1 as individual modules are migrated; P2 is only "complete" when P1 is complete.
+- Q: When a module is unbound while a downstream consumer is mid-processing from its exposed source, what should happen? → A: Operation not supported — unbind MUST fail and return an error if a consumer is currently mid-processing on the affected source/sink.
+- Q: What buffer type should the buffer factory select for same-core DP-to-DP connections? → A: Ring buffer (cached) — use a standard cached ring buffer for same-core DP-to-DP; reserve shared (non-cached) ring buffer only for cross-core connections.
+- Q: Is the "at least 30% less buffer memory" target (SC-003) a hard requirement or an aspirational estimate? → A: No specific percentage target — success is that double-buffering is eliminated for modules exposing internal storage, and memory usage does not increase.
+- Q: Should DP-to-DP (P4) be treated as a speculative design exercise or a committed deliverable with mandatory test coverage? → A: Committed deliverable — P4 is fully implemented and tested as part of this roadmap, with the 3-stage DP chain test (SC-005, SC-006) as hard acceptance criteria.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Migrate All Modules to Exclusive Sink/Source API Usage (Priority: P1)
@@ -91,8 +101,8 @@ A developer debugging a real-time audio pipeline needs visibility into DP schedu
 
 ### Edge Cases
 
-- What happens when a DP module that exposes internal storage via sink/source is unbound while a downstream module is mid-processing from that source?
-- How does the buffer factory decide between ring buffer and shared buffer when the connection is same-core DP-to-DP?
+- What happens when a DP module that exposes internal storage via sink/source is unbound while a downstream module is mid-processing from that source? **Resolved**: The unbind operation MUST fail and return an error; unbinding while a consumer is mid-processing is not supported.
+- How does the buffer factory decide between ring buffer and shared buffer when the connection is same-core DP-to-DP? **Resolved**: Same-core DP-to-DP uses a cached ring buffer; shared (non-cached) ring buffer is reserved for cross-core connections only.
 - What happens if a bind operation is requested between two sinks (or two sources) — invalid topology detection?
 - How does flat list ordering handle fan-out topologies (one module feeding multiple downstream modules)?
 - What happens when a DP-to-DP pipeline has modules with identical deadlines — how does EDF break ties?
@@ -116,7 +126,7 @@ A developer debugging a real-time audio pipeline needs visibility into DP schedu
 
 - **FR-006**: The bind operation MUST connect any source to any sink regardless of whether the provider is a module or a buffer — binding MUST be symmetric and provider-agnostic.
 - **FR-007**: A bind between two modules MUST succeed without creating an intermediate buffer if the producing module exposes a source on its internal storage and the consuming module exposes a sink.
-- **FR-008**: When a bind requires an intermediate buffer, a buffer factory MUST create a buffer of the appropriate type based on connection properties (same-core, cross-core, LL-DP bridging, shared access requirements).
+- **FR-008**: When a bind requires an intermediate buffer, a buffer factory MUST create a buffer of the appropriate type based on connection properties: cached ring buffer for same-core DP-to-DP, shared (non-cached) ring buffer for cross-core connections, ring buffer for LL-DP bridging, legacy buffer for backward compatibility.
 - **FR-009**: The buffer factory MUST support at least the following buffer types: legacy buffer (backward compatibility), ring buffer (cross-domain async), and shared buffer (multi-core with non-cached memory).
 - **FR-010**: The shared buffer type MUST use non-cached memory to enable coherent cross-core access, providing HPSRAM savings compared to the current per-core cached buffer approach.
 
@@ -158,7 +168,7 @@ A developer debugging a real-time audio pipeline needs visibility into DP schedu
 
 - **SC-001**: Zero modules reference `comp_buffer` or `audio_stream` directly — all data access goes through sink/source API (verified by static analysis or code review).
 - **SC-002**: The hybrid buffer secondary attach/sync code path is removed from the codebase with no test regressions.
-- **SC-003**: A pipeline with copier or mixin/mixout exposing internal buffers consumes at least 30% less buffer memory than the current double-buffered configuration (measured on a representative pipeline).
+- **SC-003**: Pipelines with copier or mixin/mixout exposing internal buffers via direct binding do not allocate redundant intermediate buffers — total buffer memory usage does not increase compared to the current configuration, and double-buffering is eliminated where modules expose internal storage (measured on a representative pipeline).
 - **SC-004**: All existing pipeline topologies (LL-LL, LL-DP, DP-LL) pass their test suites after the bind/buffer factory rework.
 - **SC-005**: A 3-stage DP chain (DP1 → DP2 → DP3 → LL) runs without underruns or deadline misses at steady state on a representative platform.
 - **SC-006**: Delayed start correctly holds data in a DP-to-DP chain until the downstream DP module becomes ready (verified by test with 2+ DP stages).
@@ -168,7 +178,8 @@ A developer debugging a real-time audio pipeline needs visibility into DP schedu
 ## Assumptions
 
 - The formulas in `dp_scheduling.rst` (LFT, LST, LPT, deadline, multi-cycle correction) are mathematically correct for DP-to-DP chains, though the existing code implementation only covers DP-to-LL. The code referenced in the departing colleague's TODO is a starting point but may need corrections.
-- DP-to-DP connections may not have a production use case today; this work is forward-looking based on the existing design. If no use case emerges, P4 can be deferred indefinitely without blocking P1-P3.
+- DP-to-DP connections are a committed deliverable. Although the departing colleague noted there may not be a production use case today, P4 is fully in scope with mandatory test coverage (SC-005, SC-006). The design exists in documentation and code TODOs are reserved.
+- P1 (sink/source migration) and P2 (buffer factory / direct binding) may proceed in parallel on a per-module basis. P2 development and testing can start as soon as individual modules are migrated in P1. P2 is considered complete only after P1 is fully complete. P3 and P4 similarly benefit from incremental P1 progress.
 - IPC3 backward compatibility is required but not a primary driver — the recursive traversal can remain for IPC3 as long as it produces the flat execution list.
 - "Shared buffer" refers to a buffer using non-cached (coherent) memory for multi-core access, as already defined by the `BUFFER_USAGE_SHARED` flag and ring buffer implementation. The HPSRAM savings come from avoiding duplicate cached copies per core.
 - The tracing system in P5 is a firmware-level diagnostic, not a host-side tool. It accumulates data in a small fixed-size buffer and emits via the existing trace infrastructure.
