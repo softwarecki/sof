@@ -35,17 +35,17 @@ A firmware developer maintaining an audio processing module currently accesses d
 
 ### User Story 2 - Enable Direct Module-to-Module Binding Without Intermediate Buffer (Priority: P2)
 
-A pipeline designer wants to connect two modules directly — without an explicit buffer object between them — when the producing module can expose a sink/source interface on its own internal storage. Today, every bind between modules requires creating an intermediate buffer (comp_buffer or audio_buffer). In the new model, a bind operation connects a source (from any provider — module or buffer) to a sink (from any consumer — module or buffer). When a buffer is needed (e.g., cross-domain DP↔LL, or when neither module provides internal storage), the bind operation creates one automatically through a buffer factory. This removes the current rigid one-type buffer creation and enables the proposed buffer types (ring buffer, shared buffer, legacy buffer) to be selected based on the connection requirements.
+A pipeline designer wants to connect two modules directly — without an explicit buffer object between them — when the producing module can expose a sink/source interface on its own internal storage. Today, every bind between modules requires creating an intermediate buffer (comp_buffer or audio_buffer). In the new model, a bind operation always connects two modules. When a buffer is needed between them (e.g., cross-domain DP↔LL, or when neither module provides internal storage), the bind operation creates one automatically through a buffer factory as an internal implementation detail. This removes the current rigid one-type buffer creation and enables the proposed buffer types (ring buffer, shared buffer) to be selected based on the connection requirements.
 
 **Why this priority**: Direct module binding is the architectural enabler for Pipeline 2.0. It decouples the pipeline graph from buffer allocation, allows the buffer factory to optimize memory usage (especially shared buffers saving HPSRAM), and simplifies the pipeline traversal from recursive component walks to flat ordered lists.
 
-**Independent Test**: Create a test pipeline where the copier module exposes its internal buffer via sink/source. Bind a downstream module directly to the copier's source interface. Verify data flows correctly without any intermediate buffer object being allocated. Then create a second test where both modules need a buffer — verify the buffer factory creates the appropriate type (ring buffer for cross-domain, shared buffer for multi-core).
+**Independent Test**: Create a test pipeline where the copier module exposes its internal buffer via sink/source. Bind a downstream module to the copier module. Verify data flows correctly without any intermediate buffer object being allocated. Then create a second test where neither module exposes internal storage — verify the buffer factory creates the appropriate type (ring buffer for cross-domain, shared buffer for multi-core).
 
 **Acceptance Scenarios**:
 
 1. **Given** a module that exposes a source on its internal storage, **When** another module binds to it, **Then** the bind succeeds without creating an intermediate buffer, and data flows correctly.
 2. **Given** two modules that do not expose internal storage, **When** they are bound, **Then** the buffer factory automatically creates a buffer of the appropriate type based on connection properties (same-core, cross-core, LL-DP bridging).
-3. **Given** a bind operation, **When** the sink is from one provider and the source from another (regardless of whether they are modules or buffers), **Then** the bind succeeds — binding is symmetric and provider-agnostic.
+3. **Given** a bind operation between two modules, **When** the bind is executed, **Then** it succeeds regardless of whether either module exposes internal storage — the buffer factory transparently handles buffer creation when needed.
 4. **Given** the mixin/mixout module, **When** it exposes its internal buffers via sink/source, **Then** it can be bound directly to upstream/downstream modules, eliminating the external buffer copy.
 
 ---
@@ -124,10 +124,10 @@ A developer debugging a real-time audio pipeline needs visibility into DP schedu
 
 **Module Binding and Buffer Factory (P2)**
 
-- **FR-006**: The bind operation MUST connect any source to any sink regardless of whether the provider is a module or a buffer — binding MUST be symmetric and provider-agnostic.
+- **FR-006**: The bind operation MUST connect two modules — binding is always module-to-module. Buffers, if needed, are created internally by the buffer factory as an implementation detail of the bind.
 - **FR-007**: A bind between two modules MUST succeed without creating an intermediate buffer if the producing module exposes a source on its internal storage and the consuming module exposes a sink.
-- **FR-008**: When a bind requires an intermediate buffer, a buffer factory MUST create a buffer of the appropriate type based on connection properties: cached ring buffer for same-core DP-to-DP, shared (non-cached) ring buffer for cross-core connections, ring buffer for LL-DP bridging, legacy buffer for backward compatibility.
-- **FR-009**: The buffer factory MUST support at least the following buffer types: legacy buffer (backward compatibility), ring buffer (cross-domain async), and shared buffer (multi-core with non-cached memory).
+- **FR-008**: When a bind requires an intermediate buffer, a buffer factory MUST create a buffer of the appropriate type based on connection properties: cached ring buffer for same-core DP-to-DP, shared (non-cached) ring buffer for cross-core connections, ring buffer for LL-DP bridging.
+- **FR-009**: The buffer factory MUST support at least the following buffer types: ring buffer (cross-domain async) and shared buffer (multi-core with non-cached memory). The current legacy buffer (comp_buffer/audio_stream) is not a target type and MUST be removed once all modules are migrated to sink/source API.
 - **FR-010**: The shared buffer type MUST use non-cached memory to enable coherent cross-core access, providing HPSRAM savings compared to the current per-core cached buffer approach.
 
 **Flat Execution Lists (P3)**
@@ -157,7 +157,7 @@ A developer debugging a real-time audio pipeline needs visibility into DP schedu
 - **Sink/Source API**: Abstract data access interface. A source provides data for reading; a sink accepts data for writing. Can be backed by a buffer or by a module's internal storage.
 - **Buffer Factory**: A mechanism that creates the appropriate buffer type during bind operations based on connection characteristics (domain crossing, core assignment, sharing requirements).
 - **Shared Buffer**: A buffer type using non-cached memory for coherent multi-core access. Reduces HPSRAM usage by avoiding per-core cached copies.
-- **Bind Operation**: The act of connecting a producer's source to a consumer's sink. In Pipeline 2.0, binding is provider-agnostic (works Module↔Module, Module↔Buffer, Buffer↔Module) and may or may not create an intermediate buffer.
+- **Bind Operation**: The act of connecting two modules in a pipeline. In Pipeline 2.0, binding is always module-to-module. If an intermediate buffer is needed (e.g., cross-domain, neither module exposes internal storage), the buffer factory creates it transparently as part of the bind.
 - **Flat Execution List**: An ordered list of modules attached to a pipeline, built at bind time, used at runtime to drive processing without recursive graph traversal.
 - **Deadline Calculation Chain**: A backward-propagating computation from the LL sink through all DP modules in the path, computing LFT, deadline, LST, and LPT for each stage.
 - **Delayed Start**: A mechanism during pipeline startup that holds a module's output data until the downstream module becomes ready, preventing underruns and enabling correct EDF scheduling.
