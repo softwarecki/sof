@@ -37,25 +37,25 @@ static int32_t dcblock_generic(struct dcblock_state *state,
 
 #if CONFIG_FORMAT_S16LE
 static void dcblock_s16_default(struct comp_data *cd,
-				const struct audio_stream *source,
-				const struct audio_stream *sink,
+				const struct source_fragment *source_fragment,
+				struct sink_fragment *sink_fragment,
 				uint32_t frames)
 {
 	struct dcblock_state *state;
-	int16_t *x = audio_stream_get_rptr(source);
-	int16_t *y = audio_stream_get_wptr(sink);
+	const int16_t *x = source_fragment->data_ptr;
+	int16_t *y = sink_fragment->data_ptr;
 	int32_t R;
 	int32_t tmp;
 	int idx;
 	int ch;
 	int i, n, nmax;
-	int nch = audio_stream_get_channels(source);
+	int nch = cd->channels;
 	int samples = nch * frames;
 
 	while (samples) {
-		nmax = audio_stream_samples_without_wrap_s16(source, x);
+		nmax = source_fragment_samples_without_wrap_s16(source_fragment, x);
 		n = MIN(samples, nmax);
-		nmax = audio_stream_samples_without_wrap_s16(sink, y);
+		nmax = sink_fragment_samples_without_wrap_s16(sink_fragment, y);
 		n = MIN(n, nmax);
 		for (ch = 0; ch < nch; ch++) {
 			state = &cd->state[ch];
@@ -68,8 +68,8 @@ static void dcblock_s16_default(struct comp_data *cd,
 			}
 		}
 		samples -= n;
-		x = audio_stream_wrap(source, x + n);
-		y = audio_stream_wrap(sink, y + n);
+		x = source_fragment_wrap(source_fragment, x + n);
+		y = sink_fragment_wrap(sink_fragment, y + n);
 	}
 
 }
@@ -77,25 +77,25 @@ static void dcblock_s16_default(struct comp_data *cd,
 
 #if CONFIG_FORMAT_S24LE
 static void dcblock_s24_default(struct comp_data *cd,
-				const struct audio_stream *source,
-				const struct audio_stream *sink,
+				const struct source_fragment *source_fragment,
+				struct sink_fragment *sink_fragment,
 				uint32_t frames)
 {
 	struct dcblock_state *state;
-	int32_t *x = audio_stream_get_rptr(source);
-	int32_t *y = audio_stream_get_wptr(sink);
+	const int32_t *x = source_fragment->data_ptr;
+	int32_t *y = sink_fragment->data_ptr;
 	int32_t R;
 	int32_t tmp;
 	int idx;
 	int ch;
 	int i, n, nmax;
-	int nch = audio_stream_get_channels(source);
+	int nch = cd->channels;
 	int samples = nch * frames;
 
 	while (samples) {
-		nmax = audio_stream_samples_without_wrap_s24(source, x);
+		nmax = source_fragment_samples_without_wrap_s24(source_fragment, x);
 		n = MIN(samples, nmax);
-		nmax = audio_stream_samples_without_wrap_s24(sink, y);
+		nmax = sink_fragment_samples_without_wrap_s24(sink_fragment, y);
 		n = MIN(n, nmax);
 		for (ch = 0; ch < nch; ch++) {
 			state = &cd->state[ch];
@@ -108,8 +108,8 @@ static void dcblock_s24_default(struct comp_data *cd,
 			}
 		}
 		samples -= n;
-		x = audio_stream_wrap(source, x + n);
-		y = audio_stream_wrap(sink, y + n);
+		x = source_fragment_wrap(source_fragment, x + n);
+		y = sink_fragment_wrap(sink_fragment, y + n);
 	}
 
 }
@@ -117,24 +117,24 @@ static void dcblock_s24_default(struct comp_data *cd,
 
 #if CONFIG_FORMAT_S32LE
 static void dcblock_s32_default(struct comp_data *cd,
-				const struct audio_stream *source,
-				const struct audio_stream *sink,
+				const struct source_fragment *source_fragment,
+				struct sink_fragment *sink_fragment,
 				uint32_t frames)
 {
 	struct dcblock_state *state;
-	int32_t *x = audio_stream_get_rptr(source);
-	int32_t *y = audio_stream_get_wptr(sink);
+	const int32_t *x = source_fragment->data_ptr;
+	int32_t *y = sink_fragment->data_ptr;
 	int32_t R;
 	int idx;
 	int ch;
 	int i, n, nmax;
-	int nch = audio_stream_get_channels(source);
+	int nch = cd->channels;
 	int samples = nch * frames;
 
 	while (samples) {
-		nmax = audio_stream_samples_without_wrap_s32(source, x);
+		nmax = source_fragment_samples_without_wrap_s32(source_fragment, x);
 		n = MIN(samples, nmax);
-		nmax = audio_stream_samples_without_wrap_s32(sink, y);
+		nmax = sink_fragment_samples_without_wrap_s32(sink_fragment, y);
 		n = MIN(n, nmax);
 		for (ch = 0; ch < nch; ch++) {
 			state = &cd->state[ch];
@@ -146,8 +146,8 @@ static void dcblock_s32_default(struct comp_data *cd,
 			}
 		}
 		samples -= n;
-		x = audio_stream_wrap(source, x + n);
-		y = audio_stream_wrap(sink, y + n);
+		x = source_fragment_wrap(source_fragment, x + n);
+		y = sink_fragment_wrap(sink_fragment, y + n);
 	}
 }
 #endif /* CONFIG_FORMAT_S32LE */

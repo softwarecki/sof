@@ -5,7 +5,9 @@
 
 ## Summary
 
-The goal of this feature is to close the small set of real sink/source API gaps that still block Phase 1 module migration, while also producing a reliable inventory of all legacy runtime modules and separating true API work from refactor-only conversions. The main technical decision is to add a fragment-helper layer for circular-buffer navigation on acquired source and sink fragments, plus a source-side latest-feeding-time accessor for future DP scheduling symmetry. Large architectural work such as direct bind, buffer factory, and `copier` internal-storage redesign stays out of scope.
+The goal of this feature is to close the small set of real sink/source API gaps that still block Phase 1 module migration, while also producing a reliable inventory of all legacy runtime modules and separating true API work from refactor-only conversions. The finalized helper surface is the `audio_fragment_*` family plus thin SOF-side acquisition wrappers for `source_fragment` and `sink_fragment`, alongside a source-side latest-feeding-time accessor with an explicit `UINT32_MAX` fallback when a provider does not implement `get_lft()`.
+
+The code pilots for this phase are `dcblock` for simple 1-in/1-out processing and `mixer` for multi-source routing. Larger architectural work such as direct bind, buffer factory, and `copier` internal-storage redesign stays out of scope.
 
 ## Technical Context
 
@@ -17,7 +19,7 @@ The goal of this feature is to close the small set of real sink/source API gaps 
 **Project Type**: Embedded firmware subsystem change  
 **Performance Goals**: Preserve current runtime behavior and hot-path complexity for migrated modules; avoid adding extra copies or new buffer abstractions in this phase  
 **Constraints**: Plain C only, zero new dependencies, no test-file changes, keep module-facing code free of `audio_stream` and `comp_buffer`, no direct-bind or buffer-factory work in this phase  
-**Scale/Scope**: 25 legacy runtime modules across 5 migration clusters, plus 11+ already migrated reference modules
+**Scale/Scope**: Legacy runtime modules across 5 migration clusters, with `dcblock` and `mixer` promoted to Phase 1 reference pilots
 
 ## Constitution Check
 
@@ -151,22 +153,33 @@ src/
 
 | Cluster | Modules | API work needed in this feature? | Notes |
 | --- | --- | --- | --- |
-| Simple DSP | `dcblock`, `eq_fir`, `eq_iir`, `drc`, `multiband_drc`, `crossover` | Low | Existing source/sink acquisition plus helper layer is sufficient. |
-| Simple DSP with reverse scan | `volume` | Yes | Needs bounded backward-inspection helpers. |
-| Routing | `mixer`, `mux`, `demux`, `selector` | Yes | Needs wrap-boundary helpers. |
+| Simple DSP | `eq_fir`, `eq_iir`, `drc`, `multiband_drc`, `crossover` | Low | Existing source/sink acquisition plus helper layer is sufficient; `dcblock` is now the reference pilot. |
+| Simple DSP with reverse scan | `volume` | Yes | Needs bounded backward-inspection helpers, which are now available in the shared fragment layer. |
+| Routing | `mux`, `demux`, `selector` | Yes | Needs wrap-boundary helpers; `mixer` is now the reference pilot. |
 | Complex and ML | `tdfb`, `mfcc`, `tflm-classify`, `google_ctc_audio_processing`, `aria`, `rtnr` | Low to medium | Mostly refactoring after helper layer exists. |
-| Timing-sensitive | `asrc`, `copier` | Partial | `asrc` depends on helper completeness; `copier` stays later-scope. |
-| Raw-data codecs | `dts`, `cadence_ipc3`, `nxp_eap`, `waves`, `passthrough` | No new core API expected | Mostly metadata refactoring. |
+| Timing-sensitive | `asrc`, `copier` | Partial | `asrc` depends on helper completeness beyond the pilots; `copier` stays later-scope. |
+| Raw-data codecs | `dts`, `cadence_ipc3`, `nxp_eap`, `waves`, `passthrough` | No new core API expected | `dts`, `nxp_eap`, `waves`, and `passthrough` are refactored to current getters in prepare; `cadence_ipc3` required only an audit. |
 
 ## Recommended Sequencing
 
 1. Freeze the module inventory and blocker classification.
 2. Land the fragment-helper contract.
 3. Land source-side LFT symmetry.
-4. Convert the raw-data prepare-path metadata users.
-5. Convert one simple DSP pilot.
-6. Convert one routing pilot.
-7. Re-evaluate `volume`, `asrc`, and `copier` after the helper layer proves stable.
+4. Convert the raw-data prepare-path metadata users, treating `cadence_ipc3` as an audit-only no-op if its prepare path does not use legacy metadata access.
+5. Convert `dcblock` as the simple DSP pilot.
+6. Convert `mixer` as the routing pilot.
+7. Migrate `volume` next to exercise the rewind helpers, then use `mixer` as the reference for `mux`, `demux`, and `selector`.
+8. Re-evaluate `asrc` after the helper layer proves stable outside the pilots.
+9. Keep `copier`, direct bind, buffer factory, and internal-storage redesign in later roadmap work.
+
+## Phase 1 Execution Notes
+
+- The finalized helper names are `audio_fragment_bytes_without_wrap()`, `audio_fragment_rewind_bytes_without_wrap()`, `audio_fragment_wrap()`, `audio_fragment_wrap_w()`, `audio_fragment_rewind_wrap()`, and `audio_fragment_rewind_wrap_w()`.
+- `source_get_data_fragment()` and `sink_get_buffer_fragment()` are thin wrappers over the existing acquisition APIs; they package the acquired tuple without changing reservation semantics.
+- `source_get_last_feeding_time()` returns `UINT32_MAX` when a source provider has not implemented `source_ops.get_lft()` yet.
+- `dts`, `nxp_eap`, `waves`, and `passthrough` now use existing sink/source getters in prepare-time metadata paths; `cadence_ipc3` required no prepare-time metadata rewrite.
+- `dcblock` and `mixer` are now the preferred migration references for the next simple-DSP and routing conversions.
+- Validation still needs a maintainer-approved representative build in an environment that allows terminal execution.
 
 ## Effort Estimate
 

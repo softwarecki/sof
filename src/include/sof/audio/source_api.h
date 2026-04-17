@@ -28,6 +28,16 @@ void source_init(struct sof_source *source, const struct source_ops *ops,
 size_t source_get_num_of_processed_bytes(struct sof_source *source);
 
 /**
+ * Populate a source fragment descriptor from source_get_data().
+ *
+ * This is a thin compatibility wrapper around the existing acquisition call;
+ * it packages the returned tuple without changing reservation or release
+ * semantics.
+ */
+int source_get_data_fragment(struct sof_source *source, size_t req_size,
+			     struct source_fragment *fragment);
+
+/**
  * sets counter of total number of bytes processed  to zero
  */
 void source_reset_num_of_processed_bytes(struct sof_source *source);

@@ -1,0 +1,12 @@
+.git
+.gitignore
+.vscode/
+.idea/
+.venv/
+__pycache__/
+build*/
+out/
+*.log
+*.tmp
+*.swp
+*.env*

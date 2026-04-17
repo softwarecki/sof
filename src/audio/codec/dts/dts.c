@@ -72,10 +72,9 @@ static int dts_effect_convert_sof_interface_result(struct comp_dev *dev,
 }
 
 static int dts_effect_populate_buffer_configuration(struct comp_dev *dev,
+	struct sof_source *source,
 	DtsSofInterfaceBufferConfiguration *buffer_config)
 {
-	struct comp_buffer *source = comp_dev_get_first_data_producer(dev);
-	const struct audio_stream *stream;
 	DtsSofInterfaceBufferLayout buffer_layout;
 	DtsSofInterfaceBufferFormat buffer_format;
 	unsigned int buffer_fmt, frame_fmt, rate, channels;
@@ -85,11 +84,10 @@ static int dts_effect_populate_buffer_configuration(struct comp_dev *dev,
 	if (!source)
 		return -EINVAL;
 
-	stream = &source->stream;
-	buffer_fmt = audio_stream_get_buffer_fmt(stream);
-	frame_fmt = audio_stream_get_frm_fmt(stream);
-	rate = audio_stream_get_rate(stream);
-	channels = audio_stream_get_channels(stream);
+	buffer_fmt = source_get_buffer_fmt(source);
+	frame_fmt = source_get_frm_fmt(source);
+	rate = source_get_rate(source);
+	channels = source_get_channels(source);
 
 	switch (buffer_fmt) {
 	case SOF_IPC_BUFFER_INTERLEAVED:
@@ -187,7 +185,7 @@ static int dts_codec_prepare(struct processing_module *mod,
 
 	comp_dbg(dev, "start");
 
-	ret = dts_effect_populate_buffer_configuration(dev, &buffer_configuration);
+	ret = dts_effect_populate_buffer_configuration(dev, sources[0], &buffer_configuration);
 	if (ret) {
 		comp_err(dev,
 			"dts_effect_populate_buffer_configuration failed %d",

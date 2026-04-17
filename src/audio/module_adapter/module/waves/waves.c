@@ -215,13 +215,9 @@ static int waves_effect_allocate(struct processing_module *mod)
 }
 
 /* checks if sink/source parameters fit MaxxEffect */
-static int waves_effect_check(struct comp_dev *dev)
+static int waves_effect_check(struct comp_dev *dev, struct sof_source *source,
+			      struct sof_sink *sink)
 {
-	struct comp_buffer *sink = comp_dev_get_first_data_consumer(dev);
-	struct comp_buffer *source = comp_dev_get_first_data_producer(dev);
-	const struct audio_stream *src_fmt = &source->stream;
-	const struct audio_stream *snk_fmt = &sink->stream;
-
 	/* Init sink & source buffers */
 	comp_dbg(dev, "start");
 
@@ -233,52 +229,52 @@ static int waves_effect_check(struct comp_dev *dev)
 	/* todo use fallback to comp_verify_params when ready */
 
 	/* resampling not supported */
-	if (audio_stream_get_rate(src_fmt) != audio_stream_get_rate(snk_fmt)) {
+	if (source_get_rate(source) != sink_get_rate(sink)) {
 		comp_err(dev, "source %d sink %d rate mismatch",
-			 audio_stream_get_rate(src_fmt), audio_stream_get_rate(snk_fmt));
+			 source_get_rate(source), sink_get_rate(sink));
 		return -EINVAL;
 	}
 
 	/* upmix/downmix not supported */
-	if (audio_stream_get_channels(src_fmt) != audio_stream_get_channels(snk_fmt)) {
+	if (source_get_channels(source) != sink_get_channels(sink)) {
 		comp_err(dev, "source %d sink %d channels mismatch",
-			 audio_stream_get_channels(src_fmt), audio_stream_get_channels(snk_fmt));
+			 source_get_channels(source), sink_get_channels(sink));
 		return -EINVAL;
 	}
 
 	/* different frame format not supported */
-	if (audio_stream_get_frm_fmt(src_fmt) != audio_stream_get_frm_fmt(snk_fmt)) {
+	if (source_get_frm_fmt(source) != sink_get_frm_fmt(sink)) {
 		comp_err(dev, "source %d sink %d sample format mismatch",
-			 audio_stream_get_frm_fmt(src_fmt), audio_stream_get_frm_fmt(snk_fmt));
+			 source_get_frm_fmt(source), sink_get_frm_fmt(sink));
 		return -EINVAL;
 	}
 
 	/* different interleaving is not supported */
-	if (audio_stream_get_buffer_fmt(src_fmt) != audio_stream_get_buffer_fmt(snk_fmt)) {
+	if (source_get_buffer_fmt(source) != sink_get_buffer_fmt(sink)) {
 		comp_err(dev, "source %d sink %d buffer format mismatch",
-			 audio_stream_get_buffer_fmt(src_fmt), audio_stream_get_buffer_fmt(snk_fmt));
+			 source_get_buffer_fmt(source), sink_get_buffer_fmt(sink));
 		return -EINVAL;
 	}
 
-	if (!format_is_supported(audio_stream_get_frm_fmt(src_fmt))) {
+	if (!format_is_supported(source_get_frm_fmt(source))) {
 		comp_err(dev, "float samples not supported");
 		return -EINVAL;
 	}
 
-	if (!layout_is_supported(audio_stream_get_buffer_fmt(src_fmt))) {
+	if (!layout_is_supported(source_get_buffer_fmt(source))) {
 		comp_err(dev, "non interleaved format not supported");
 		return -EINVAL;
 	}
 
-	if (!rate_is_supported(audio_stream_get_rate(src_fmt))) {
+	if (!rate_is_supported(source_get_rate(source))) {
 		comp_err(dev, "rate %d not supported",
-			 audio_stream_get_rate(src_fmt));
+			 source_get_rate(source));
 		return -EINVAL;
 	}
 
-	if (audio_stream_get_channels(src_fmt) != 2) {
+	if (source_get_channels(source) != 2) {
 		comp_err(dev, "channels %d not supported",
-			 audio_stream_get_channels(src_fmt));
+			 source_get_channels(source));
 		return -EINVAL;
 	}
 
@@ -287,13 +283,11 @@ static int waves_effect_check(struct comp_dev *dev)
 }
 
 /* initializes MaxxEffect based on stream parameters */
-static int waves_effect_init(struct processing_module *mod)
+static int waves_effect_init(struct processing_module *mod, struct sof_source *source)
 {
 	struct comp_dev *dev = mod->dev;
-	struct comp_buffer *source = comp_dev_get_first_data_producer(dev);
 	struct module_data *codec = &mod->priv;
 	struct waves_codec_data *waves_codec = codec->private;
-	const struct audio_stream *src_fmt = &source->stream;
 	MaxxStatus_t status;
 	MaxxBuffer_Format_t sample_format;
 	MaxxBuffer_Layout_t buffer_format;
@@ -303,17 +297,17 @@ static int waves_effect_init(struct processing_module *mod)
 
 	comp_dbg(dev, "start");
 
-	sample_format = format_convert_sof_to_me(audio_stream_get_frm_fmt(src_fmt));
+	sample_format = format_convert_sof_to_me(source_get_frm_fmt(source));
 	if (sample_format < 0) {
 		comp_err(dev, "sof sample format %d not supported",
-			 audio_stream_get_frm_fmt(src_fmt));
+			 source_get_frm_fmt(source));
 		return -EINVAL;
 	}
 
-	buffer_format = layout_convert_sof_to_me(audio_stream_get_buffer_fmt(src_fmt));
+	buffer_format = layout_convert_sof_to_me(source_get_buffer_fmt(source));
 	if (buffer_format < 0) {
 		comp_err(dev, "sof buffer format %d not supported",
-			 audio_stream_get_buffer_fmt(src_fmt));
+			 source_get_buffer_fmt(source));
 		return -EINVAL;
 	}
 
@@ -328,8 +322,8 @@ static int waves_effect_init(struct processing_module *mod)
 	waves_codec->i_buffer = 0;
 	waves_codec->o_buffer = 0;
 
-	waves_codec->i_format.sampleRate = audio_stream_get_rate(src_fmt);
-	waves_codec->i_format.numChannels = audio_stream_get_channels(src_fmt);
+	waves_codec->i_format.sampleRate = source_get_rate(source);
+	waves_codec->i_format.numChannels = source_get_channels(source);
 	waves_codec->i_format.samplesFormat = sample_format;
 	waves_codec->i_format.samplesLayout = buffer_format;
 	waves_codec->o_format = waves_codec->i_format;
@@ -338,10 +332,10 @@ static int waves_effect_init(struct processing_module *mod)
 	/* Prepare a buffer for 1 period worth of data
 	 * dev->pipeline->period stands for the scheduling period in us
 	 */
-	waves_codec->buffer_samples = audio_stream_get_rate(src_fmt) * dev->pipeline->period /
+	waves_codec->buffer_samples = source_get_rate(source) * dev->pipeline->period /
 		1000000;
 	waves_codec->buffer_bytes = waves_codec->buffer_samples *
-		audio_stream_get_channels(src_fmt) * waves_codec->sample_size_in_bytes;
+		source_get_channels(source) * waves_codec->sample_size_in_bytes;
 
 	// trace allows printing only up-to 4 words at a time
 	// logging all the information in two calls
@@ -715,11 +709,11 @@ static int waves_codec_prepare(struct processing_module *mod,
 
 	comp_dbg(dev, "start");
 
-	ret = waves_effect_check(dev);
+	ret = waves_effect_check(dev, sources[0], sinks[0]);
 	if (ret)
 		goto error;
 
-	ret = waves_effect_init(mod);
+	ret = waves_effect_init(mod, sources[0]);
 	if (ret)
 		goto error;
 

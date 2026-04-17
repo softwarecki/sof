@@ -170,15 +170,12 @@ static int nxp_eap_prepare(struct processing_module *mod,
 	struct comp_dev *dev = mod->dev;
 	struct module_data *md = &mod->priv;
 	struct nxp_eap_data *eap = module_get_private_data(mod);
-	struct comp_buffer *source = comp_dev_get_first_data_producer(dev);
-	const struct audio_stream *stream;
 
 	comp_dbg(dev, "entry");
 
-	stream = &source->stream;
-	eap->sample_rate = audio_stream_get_rate(stream);
-	eap->channels = audio_stream_get_channels(stream);
-	eap->frame_bytes = audio_stream_frame_bytes(stream);
+	eap->sample_rate = source_get_rate(sources[0]);
+	eap->channels = source_get_channels(sources[0]);
+	eap->frame_bytes = source_get_frame_bytes(sources[0]);
 	eap->audio_time_ms = 0;
 
 	/* total bytes needed to be in the input buffer to be processed

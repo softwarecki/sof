@@ -11,6 +11,9 @@
 #include <sof/audio/buffer.h>
 #include <sof/audio/component.h>
 #include <sof/audio/format.h>
+#include <sof/audio/sink_api.h>
+#include <sof/audio/sink_source_utils.h>
+#include <sof/audio/source_api.h>
 #include <sof/platform.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -34,17 +37,20 @@ void sys_comp_module_mixer_interface_init(void);
 
 /* mixer component private data */
 struct mixer_data {
-	void (*mix_func)(struct comp_dev *dev, struct audio_stream *sink,
-			 const struct audio_stream **sources, uint32_t count,
-			 uint32_t frames);
+	void (*mix_func)(struct comp_dev *dev, struct sink_fragment *sink,
+			 const struct source_fragment **sources, uint32_t count,
+			 uint32_t channels, uint32_t frames);
+	uint32_t channels;
+	uint32_t frame_bytes;
+	uint32_t frame_align;
 };
 
 /**
  * \brief mixer processing function interface
  */
-typedef void (*mixer_func)(struct comp_dev *dev, struct audio_stream *sink,
-			   const struct audio_stream **sources, uint32_t num_sources,
-			   uint32_t frames);
+typedef void (*mixer_func)(struct comp_dev *dev, struct sink_fragment *sink,
+			   const struct source_fragment **sources, uint32_t num_sources,
+			   uint32_t channels, uint32_t frames);
 
 /** \brief Volume processing functions map. */
 struct mixer_func_map {

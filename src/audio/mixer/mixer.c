@@ -71,32 +71,42 @@ static int mixer_free(struct processing_module *mod)
  * Mix N source PCM streams to one sink PCM stream. Frames copied is constant.
  */
 static int mixer_process(struct processing_module *mod,
-			 struct input_stream_buffer *input_buffers, int num_input_buffers,
-			 struct output_stream_buffer *output_buffers, int num_output_buffers)
+			 struct sof_source **sources, int num_of_sources,
+			 struct sof_sink **sinks, int num_of_sinks)
 {
 	struct mixer_data *md = module_get_private_data(mod);
 	struct comp_dev *dev = mod->dev;
-	const struct audio_stream *sources_stream[PLATFORM_MAX_STREAMS];
+	const struct source_fragment *sources_stream[PLATFORM_MAX_STREAMS];
+	struct source_fragment source_fragments[PLATFORM_MAX_STREAMS];
+	struct sink_fragment sink_fragment;
 	int sources_indices[PLATFORM_MAX_STREAMS];
 	int32_t i = 0, j = 0;
-	uint32_t frames = INT32_MAX;
-	/* Redundant, but helps the compiler */
-	uint32_t source_bytes = 0;
+	uint32_t frames;
 	uint32_t sink_bytes;
 	int active_input_buffers = 0;
+	int ret;
 
-	comp_dbg(dev, "%d", num_input_buffers);
+	comp_dbg(dev, "%d", num_of_sources);
 
 	/* too many sources ? */
-	if (num_input_buffers >= PLATFORM_MAX_STREAMS)
+	if (num_of_sources >= PLATFORM_MAX_STREAMS)
+		return -EINVAL;
+	if (num_of_sinks != 1)
 		return -EINVAL;
 
+	if (md->frame_align == 0 || md->frame_bytes == 0)
+		return -EINVAL;
+
+	frames = (sink_get_free_size(sinks[0]) / (md->frame_align * md->frame_bytes)) *
+		md->frame_align;
+
 	/* check for underruns */
-	for (i = 0; i < num_input_buffers; i++) {
+	for (i = 0; i < num_of_sources; i++) {
 		uint32_t avail_frames;
 
-		avail_frames = audio_stream_avail_frames_aligned(mod->input_buffers[i].data,
-								 mod->output_buffers[0].data);
+		avail_frames = (source_get_data_available(sources[i]) /
+				(source_get_frame_bytes(sources[i]) * md->frame_align)) *
+			md->frame_align;
 
 		/* if one source is inactive, skip it */
 		if (avail_frames == 0)
@@ -113,45 +123,74 @@ static int mixer_process(struct processing_module *mod,
 		 * generating silence until at least one of the
 		 * sources start to have data available (frames!=0).
 		 */
-		sink_bytes = dev->frames * audio_stream_frame_bytes(mod->output_buffers[0].data);
-		if (!audio_stream_set_zero(mod->output_buffers[0].data, sink_bytes))
-			mod->output_buffers[0].size = sink_bytes;
+		frames = MIN(frames ? frames : sink_get_free_frames(sinks[0]), (uint32_t)dev->frames);
+		if (md->frame_align > 1)
+			frames -= frames % md->frame_align;
+		if (!frames)
+			return 0;
 
-		return 0;
+		return sink_fill_with_silence(sinks[0], frames * md->frame_bytes);
 	}
 
-	/* Every source has the same format, so calculate bytes based on the first one */
-	source_bytes = frames * audio_stream_frame_bytes(mod->input_buffers[0].data);
+	frames = MIN(frames, (uint32_t)dev->frames);
+	if (md->frame_align > 1)
+		frames -= frames % md->frame_align;
+	if (!frames)
+		return 0;
 
-	sink_bytes = frames * audio_stream_frame_bytes(mod->output_buffers[0].data);
+	sink_bytes = frames * md->frame_bytes;
 
-	comp_dbg(dev, "source_bytes = 0x%x, sink_bytes = 0x%x",
-		 source_bytes, sink_bytes);
+	comp_dbg(dev, "sink_bytes = 0x%x", sink_bytes);
+
+	ret = sink_get_buffer_fragment(sinks[0], sink_bytes, &sink_fragment);
+	if (ret)
+		return ret;
 
 	/* mix streams */
-	for (i = 0; i < num_input_buffers; i++) {
+	for (i = 0; i < num_of_sources; i++) {
 		uint32_t avail_frames;
 
-		avail_frames = audio_stream_avail_frames_aligned(mod->input_buffers[i].data,
-								 mod->output_buffers[0].data);
+		avail_frames = (source_get_data_available(sources[i]) /
+				(source_get_frame_bytes(sources[i]) * md->frame_align)) *
+			md->frame_align;
 
 		/* if one source is inactive, skip it */
 		if (avail_frames == 0)
 			continue;
 
+		ret = source_get_data_fragment(sources[i], frames * source_get_frame_bytes(sources[i]),
+					      &source_fragments[j]);
+		if (ret) {
+			while (j--)
+				source_release_data(sources[sources_indices[j]], 0);
+			sink_commit_buffer(sinks[0], 0);
+			return ret;
+		}
+
 		sources_indices[j] = i;
-		sources_stream[j++] = mod->input_buffers[i].data;
+		sources_stream[j] = &source_fragments[j];
+		j++;
 	}
 
 	if (j)
-		md->mix_func(dev, mod->output_buffers[0].data, sources_stream, j, frames);
-	mod->output_buffers[0].size = sink_bytes;
+		md->mix_func(dev, &sink_fragment, sources_stream, j, md->channels, frames);
 
 	/* update source buffer consumed bytes */
-	for (i = 0; i < j; i++)
-		mod->input_buffers[sources_indices[i]].consumed = source_bytes;
+	ret = 0;
+	for (i = 0; i < j; i++) {
+		int release_ret = source_release_data(sources[sources_indices[i]],
+						    frames * source_get_frame_bytes(sources[sources_indices[i]]));
 
-	return 0;
+		if (!ret)
+			ret = release_ret;
+	}
+
+	if (!ret)
+		ret = sink_commit_buffer(sinks[0], sink_bytes);
+	else
+		sink_commit_buffer(sinks[0], 0);
+
+	return ret;
 }
 
 static int mixer_reset(struct processing_module *mod)
@@ -201,6 +240,21 @@ static inline void mixer_set_frame_alignment(struct audio_stream *source)
 #endif
 }
 
+static inline uint32_t mixer_frame_align_count(const struct audio_stream *stream)
+{
+	uint32_t byte_align = 1;
+	uint32_t frame_bytes = audio_stream_frame_bytes(stream);
+
+	if (!frame_bytes)
+		return 0;
+
+#if XCHAL_HAVE_HIFI3 || XCHAL_HAVE_HIFI4
+	byte_align = audio_stream_get_channels(stream) == 6 ? 16 : 8;
+#endif
+
+	return byte_align / gcd(byte_align, frame_bytes);
+}
+
 static int mixer_prepare(struct processing_module *mod,
 			 struct sof_source **sources, int num_of_sources,
 			 struct sof_sink **sinks, int num_of_sinks)
@@ -216,6 +270,11 @@ static int mixer_prepare(struct processing_module *mod,
 	}
 
 	md->mix_func = mixer_get_processing_function(dev, sink);
+	if (!md->mix_func)
+		return -EINVAL;
+	md->channels = audio_stream_get_channels(&sink->stream);
+	md->frame_bytes = audio_stream_frame_bytes(&sink->stream);
+	md->frame_align = mixer_frame_align_count(&sink->stream);
 	mixer_set_frame_alignment(&sink->stream);
 
 	/* check each mixer source state */
@@ -248,7 +307,7 @@ static int mixer_prepare(struct processing_module *mod,
 static const struct module_interface mixer_interface = {
 	.init = mixer_init,
 	.prepare = mixer_prepare,
-	.process_audio_stream = mixer_process,
+	.process = mixer_process,
 	.reset = mixer_reset,
 	.free = mixer_free,
 };

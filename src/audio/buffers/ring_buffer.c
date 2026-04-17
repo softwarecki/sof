@@ -261,6 +261,7 @@ static const struct source_ops ring_buffer_source_ops = {
 	.get_data_available = ring_buffer_get_data_available,
 	.get_data = ring_buffer_get_data,
 	.release_data = ring_buffer_release_data,
+	.get_lft = audio_buffer_source_get_lft,
 	.audio_set_ipc_params = audio_buffer_source_set_ipc_params,
 	.on_audio_format_set = audio_buffer_source_on_audio_format_set,
 	.set_alignment_constants = audio_buffer_source_set_alignment_constants,

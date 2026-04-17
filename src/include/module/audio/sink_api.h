@@ -54,6 +54,15 @@ struct sof_ipc_stream_params;
 struct processing_module;
 
 /**
+ * @brief Descriptor of a fragment acquired from a sink.
+ */
+struct sink_fragment {
+	void *data_ptr;
+	void *buffer_start;
+	size_t buffer_size;
+};
+
+/**
  * this is a definition of internals of sink API
  *
  * The clients of stream API should use access functions provided below!
@@ -223,6 +232,53 @@ int sink_get_buffer_s16(struct sof_sink *sink, size_t req_size, int16_t **data_p
  */
 int sink_get_buffer_s32(struct sof_sink *sink, size_t req_size, int32_t **data_ptr,
 			int32_t **buffer_start, int *buffer_samples);
+
+/**
+ * @brief Calculate the number of bytes from @p ptr to the forward wrap point.
+ */
+int audio_fragment_bytes_without_wrap(const void *ptr,
+				      const void *buffer_start,
+				      size_t buffer_size);
+
+/**
+ * @brief Calculate the number of bytes from @p ptr to the backward wrap point.
+ */
+int audio_fragment_rewind_bytes_without_wrap(const void *ptr,
+					     const void *buffer_start);
+
+/**
+ * @brief Wrap a write pointer that moved past the end of a fragment.
+ */
+void *audio_fragment_wrap_w(void *ptr, void *buffer_start, size_t buffer_size);
+
+/**
+ * @brief Wrap a write pointer that moved before the start of a fragment.
+ */
+void *audio_fragment_rewind_wrap_w(void *ptr, void *buffer_start, size_t buffer_size);
+
+static inline int sink_fragment_bytes_without_wrap(const struct sink_fragment *fragment,
+					   const void *ptr)
+{
+	return audio_fragment_bytes_without_wrap(ptr, fragment->buffer_start,
+						 fragment->buffer_size);
+}
+
+static inline int sink_fragment_rewind_bytes_without_wrap(const struct sink_fragment *fragment,
+						  const void *ptr)
+{
+	return audio_fragment_rewind_bytes_without_wrap(ptr, fragment->buffer_start);
+}
+
+static inline void *sink_fragment_wrap(const struct sink_fragment *fragment, void *ptr)
+{
+	return audio_fragment_wrap_w(ptr, fragment->buffer_start, fragment->buffer_size);
+}
+
+static inline void *sink_fragment_rewind_wrap(const struct sink_fragment *fragment, void *ptr)
+{
+	return audio_fragment_rewind_wrap_w(ptr, fragment->buffer_start,
+					   fragment->buffer_size);
+}
 
 /**
  * Commits that the buffer previously obtained by get_buffer is filled with data

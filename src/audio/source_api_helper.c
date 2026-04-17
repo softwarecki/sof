@@ -24,10 +24,32 @@ size_t source_get_num_of_processed_bytes(struct sof_source *source)
 	return source->num_of_bytes_processed;
 }
 
+int source_get_data_fragment(struct sof_source *source, size_t req_size,
+			     struct source_fragment *fragment)
+{
+	/* Keep fragment acquisition aligned with the existing source reservation flow. */
+	if (!fragment)
+		return -EINVAL;
+
+	return source_get_data(source, req_size, &fragment->data_ptr,
+			       &fragment->buffer_start, &fragment->buffer_size);
+}
+EXPORT_SYMBOL(source_get_data_fragment);
+
 void source_reset_num_of_processed_bytes(struct sof_source *source)
 {
 	source->num_of_bytes_processed = 0;
 }
+
+uint32_t source_get_last_feeding_time(struct sof_source *source)
+{
+	/* Older providers may omit get_lft() until scheduler users are migrated. */
+	if (!source->ops->get_lft)
+		return UINT32_MAX;
+
+	return source->ops->get_lft(source);
+}
+EXPORT_SYMBOL(source_get_last_feeding_time);
 
 bool source_get_underrun(struct sof_source *source)
 {

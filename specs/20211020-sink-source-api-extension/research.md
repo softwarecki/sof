@@ -38,7 +38,7 @@
 ## Decision 5: Raw-data codecs do not need new core sink/source accessors
 
 - **Decision**: Treat raw-data codec modules as `refactor-only` for metadata access unless later implementation uncovers a concrete missing primitive.
-- **Rationale**: The audited raw-data codecs mainly reach through `comp_buffer->stream` in prepare-time logic to get format, rate, channels, or buffer format. Those are already available through current sink/source getters.
+- **Rationale**: The audited raw-data codecs mainly reach through `comp_buffer->stream` in prepare-time logic to get format, rate, channels, or buffer format. Those are already available through current sink/source getters. The prepare paths in `dts`, `nxp_eap`, `waves`, and `passthrough` were converted to those getters. `cadence_ipc3` was audited separately and did not contain a prepare-time `comp_buffer->stream` metadata read that required replacement; its remaining raw-buffer usage is process-time local buffering and stays out of scope for this phase.
 - **Alternatives considered**:
   - Add non-reserving metadata or free-space APIs for codecs: rejected for now because the current getters and size queries already provide the needed information.
   - Keep `comp_buffer` access in codec prepare paths: rejected because it would leave known legacy dependencies in place.
@@ -60,10 +60,11 @@
 
 ## Legacy Module Inventory
 
-### Modules still using `.process_audio_stream`
+### Modules still using `.process_audio_stream` after the Phase 1 pilot conversions
 
-- **Simple 1-in/1-out DSP**: `dcblock`, `eq_fir`, `eq_iir`, `drc`, `multiband_drc`, `crossover`, `volume`
-- **Multi-pin and routing**: `mixer`, `mux`, `demux`, `selector`
+- **Simple 1-in/1-out DSP**: `eq_fir`, `eq_iir`, `drc`, `multiband_drc`, `crossover`
+- **Simple DSP with backward scan**: `volume`
+- **Multi-pin and routing**: `mux`, `demux`, `selector`
 - **Timing-sensitive**: `asrc`, `copier`
 - **Complex or ML/analysis**: `tdfb`, `mfcc`, `tflm-classify`, `google_ctc_audio_processing`, `aria`, `rtnr`
 
@@ -75,6 +76,11 @@
 - `waves`
 - `passthrough`
 
+### Pilot migrations completed in this phase
+
+- `dcblock`
+- `mixer`
+
 ### Already migrated reference implementations
 
 - `tone`
@@ -85,6 +91,8 @@
 - `stft_process`
 - `sound_dose`
 - `src`
+- `dcblock`
+- `mixer`
 
 ## Verified Existing Capabilities That Do Not Need New API Work
 
@@ -116,13 +124,22 @@
    - Needed for later DP-to-DP scheduling work.
    - Best expressed as a source-side mirror of the existing sink-side LFT query.
 
+No additional backward-inspection gap remained after auditing `volume` and `asrc`; the shared helper layer now carries both rewind-distance and rewind-wrap equivalents for follow-on migrations.
+
 ## Migration Impact By Cluster
 
 | Cluster | Modules | Needs new API work? | Notes |
 | --- | --- | --- | --- |
-| Simple DSP | `dcblock`, `eq_fir`, `eq_iir`, `drc`, `multiband_drc`, `crossover` | Mostly no | Existing acquisition plus helper layer is enough. |
-| Simple DSP with backward scan | `volume` | Yes | Needs bounded backward-inspection helpers. |
-| Routing and multi-pin | `mixer`, `mux`, `demux`, `selector` | Yes | Needs wrap-boundary helpers, not a new multi-stream reservation API. |
+| Simple DSP | `eq_fir`, `eq_iir`, `drc`, `multiband_drc`, `crossover` | Mostly no | Existing acquisition plus helper layer is enough; `dcblock` is now the pilot reference. |
+| Simple DSP with backward scan | `volume` | Yes | Uses rewind-distance helpers that are now present in the shared fragment layer. |
+| Routing and multi-pin | `mux`, `demux`, `selector` | Yes | Needs wrap-boundary helpers, not a new multi-stream reservation API; `mixer` is now the pilot reference. |
 | Complex and ML | `tdfb`, `mfcc`, `tflm-classify`, `google_ctc_audio_processing`, `aria`, `rtnr` | Mostly no | Existing source/sink model is already close to sufficient. |
-| Timing-sensitive | `asrc`, `copier` | Partially | `asrc` needs helper-layer coverage; `copier` remains later-scope analysis. |
-| Raw-data codecs | `dts`, `cadence_ipc3`, `nxp_eap`, `waves`, `passthrough` | No new core API expected | Mostly prepare-path refactoring to current getters. |
+| Timing-sensitive | `asrc`, `copier` | Partially | `asrc` can follow once helper usage beyond the pilots is validated; `copier` remains later-scope analysis. |
+| Raw-data codecs | `dts`, `cadence_ipc3`, `nxp_eap`, `waves`, `passthrough` | No new core API expected | `dts`, `nxp_eap`, `waves`, and `passthrough` now use current getters in prepare; `cadence_ipc3` required no prepare-time metadata rewrite. |
+
+## Validation Results
+
+- A static inventory sweep still finds the remaining `.process_audio_stream` and `.process_raw_data` users, while `dcblock` and `mixer` no longer appear in the `.process_audio_stream` set.
+- A targeted reverse-scan audit confirmed that `volume` still depends on `audio_stream_rewind_bytes_without_wrap()` and `audio_stream_rewind_wrap()`, and the shared fragment helper layer now exposes direct equivalents for both operations.
+- A targeted tree search did not find additional rewind-helper users under `src/audio/asrc/`.
+- A representative firmware build via `scripts/xtensa-build-zephyr.py -p ptl` was attempted as the documented validation path, but terminal execution was skipped, so build validation remains unconfirmed for this workspace.

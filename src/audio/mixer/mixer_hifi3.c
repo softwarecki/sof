@@ -14,12 +14,12 @@
 
 #if CONFIG_FORMAT_S16LE
 /* Mix n 16 bit PCM source streams to one sink stream */
-static void mix_n_s16(struct comp_dev *dev, struct audio_stream *sink,
-		      const struct audio_stream **sources, uint32_t num_sources,
-		      uint32_t frames)
+static void mix_n_s16(struct comp_dev *dev, struct sink_fragment *sink,
+		      const struct source_fragment **sources, uint32_t num_sources,
+		      uint32_t channels, uint32_t frames)
 {
-	ae_int16x4 * in[PLATFORM_MAX_CHANNELS];
-	ae_int16x4 *out = audio_stream_get_wptr(sink);
+	ae_int16x4 * in[PLATFORM_MAX_STREAMS];
+	ae_int16x4 *out = sink->data_ptr;
 	ae_int16x4 sample = AE_ZERO16();
 	ae_int16x4 res = AE_ZERO16();
 	ae_int32x2 val1;
@@ -27,18 +27,18 @@ static void mix_n_s16(struct comp_dev *dev, struct audio_stream *sink,
 	ae_int32x2 sample_1;
 	ae_int32x2 sample_2;
 	unsigned int n, m, nmax, i, j, left_samples;
-	unsigned int samples = frames * audio_stream_get_channels(sink);
+	unsigned int samples = frames * channels;
 
 	for (j = 0; j < num_sources; j++)
-		in[j] = audio_stream_get_rptr(sources[j]);
+		in[j] = (ae_int16x4 *)sources[j]->data_ptr;
 
 	for (left_samples = samples; left_samples; left_samples -= n) {
-		out = audio_stream_wrap(sink,  out);
-		nmax = audio_stream_samples_without_wrap_s16(sink, out);
+		out = sink_fragment_wrap(sink, out);
+		nmax = sink_fragment_samples_without_wrap_s16(sink, out);
 		n = MIN(left_samples, nmax);
 		for (j = 0; j < num_sources; j++) {
-			in[j] = audio_stream_wrap(sources[j], in[j]);
-			nmax = audio_stream_samples_without_wrap_s16(sources[j], in[j]);
+			in[j] = (ae_int16x4 *)source_fragment_wrap(sources[j], in[j]);
+			nmax = source_fragment_samples_without_wrap_s16(sources[j], in[j]);
 			n = MIN(n, nmax);
 		}
 		m = n >> 2;
@@ -70,27 +70,27 @@ static void mix_n_s16(struct comp_dev *dev, struct audio_stream *sink,
 
 #if CONFIG_FORMAT_S24LE
 /* Mix n 24 bit PCM source streams to one sink stream */
-static void mix_n_s24(struct comp_dev *dev, struct audio_stream *sink,
-		      const struct audio_stream **sources, uint32_t num_sources,
-		      uint32_t frames)
+static void mix_n_s24(struct comp_dev *dev, struct sink_fragment *sink,
+		      const struct source_fragment **sources, uint32_t num_sources,
+		      uint32_t channels, uint32_t frames)
 {
-	ae_int32x2 *in[PLATFORM_MAX_CHANNELS];
-	ae_int32x2 *out = audio_stream_get_wptr(sink);
+	ae_int32x2 *in[PLATFORM_MAX_STREAMS];
+	ae_int32x2 *out = sink->data_ptr;
 	ae_int32x2 val;
 	ae_int32x2 sample = AE_ZERO32();
 	unsigned int n, m, nmax, i, j, left_samples;
-	unsigned int samples = frames * audio_stream_get_channels(sink);
+	unsigned int samples = frames * channels;
 
 	for (j = 0; j < num_sources; j++)
-		in[j] = audio_stream_get_rptr(sources[j]);
+		in[j] = (ae_int32x2 *)sources[j]->data_ptr;
 
 	for (left_samples = samples; left_samples; left_samples -= n) {
-		out = audio_stream_wrap(sink,  out);
-		nmax = audio_stream_samples_without_wrap_s32(sink, out);
+		out = sink_fragment_wrap(sink, out);
+		nmax = sink_fragment_samples_without_wrap_s32(sink, out);
 		n = MIN(left_samples, nmax);
 		for (j = 0; j < num_sources; j++) {
-			in[j] = audio_stream_wrap(sources[j], in[j]);
-			nmax = audio_stream_samples_without_wrap_s32(sources[j], in[j]);
+			in[j] = (ae_int32x2 *)source_fragment_wrap(sources[j], in[j]);
+			nmax = source_fragment_samples_without_wrap_s32(sources[j], in[j]);
 			n = MIN(n, nmax);
 		}
 		m = n >> 1;
@@ -115,29 +115,29 @@ static void mix_n_s24(struct comp_dev *dev, struct audio_stream *sink,
 
 #if CONFIG_FORMAT_S32LE
 /* Mix n 32 bit PCM source streams to one sink stream */
-static void mix_n_s32(struct comp_dev *dev, struct audio_stream *sink,
-		      const struct audio_stream **sources, uint32_t num_sources,
-		      uint32_t frames)
+static void mix_n_s32(struct comp_dev *dev, struct sink_fragment *sink,
+		      const struct source_fragment **sources, uint32_t num_sources,
+		      uint32_t channels, uint32_t frames)
 {
-	ae_q32s * in[PLATFORM_MAX_CHANNELS];
-	ae_int32 *out = audio_stream_get_wptr(sink);
+	ae_q32s * in[PLATFORM_MAX_STREAMS];
+	ae_int32 *out = sink->data_ptr;
 	ae_int64 sample;
 	ae_int64 val;
 	ae_int32x2 res;
 	unsigned int n, nmax, i, j, left_samples;
 	unsigned int m = 0;
-	unsigned int samples = frames * audio_stream_get_channels(sink);
+	unsigned int samples = frames * channels;
 
 	for (j = 0; j < num_sources; j++)
-		in[j] = audio_stream_get_rptr(sources[j]);
+		in[j] = (ae_q32s *)sources[j]->data_ptr;
 
 	for (left_samples = samples; left_samples; left_samples -= n) {
-		out = audio_stream_wrap(sink,  out);
-		nmax = audio_stream_samples_without_wrap_s32(sink, out);
+		out = sink_fragment_wrap(sink, out);
+		nmax = sink_fragment_samples_without_wrap_s32(sink, out);
 		n = MIN(left_samples, nmax);
 		for (j = 0; j < num_sources; j++) {
-			in[j] = audio_stream_wrap(sources[j], in[j] + m);
-			nmax = audio_stream_samples_without_wrap_s32(sources[j], in[j]);
+			in[j] = (ae_q32s *)source_fragment_wrap(sources[j], in[j] + m);
+			nmax = source_fragment_samples_without_wrap_s32(sources[j], in[j]);
 			n = MIN(n, nmax);
 		}
 		/*record the processed samples for next address iteration */

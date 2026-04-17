@@ -186,6 +186,20 @@ int audio_buffer_source_set_alignment_constants(struct sof_source *source,
 	return 0;
 }
 
+uint32_t audio_buffer_source_get_lft(struct sof_source *source)
+{
+	/* get number of ms in the buffer */
+	size_t bytes_per_sec = source_get_frame_bytes(source) * source_get_rate(source);
+	size_t bytes_per_ms = bytes_per_sec / 1000;
+
+	/* round up for frequencies like 44100 */
+	if (bytes_per_ms * 1000 != bytes_per_sec)
+		bytes_per_ms++;
+
+	return 1000 * source_get_data_available(source) / bytes_per_ms;
+}
+EXPORT_SYMBOL(audio_buffer_source_get_lft);
+
 uint32_t audio_buffer_sink_get_lft(struct sof_sink *sink)
 {
 	struct sof_audio_buffer *buffer = sof_audio_buffer_from_sink(sink);

@@ -11,8 +11,8 @@
 
 **Purpose**: Freeze the implementation scope and validation path before touching the public API
 
-- [ ] T001 [P] Lock helper naming, pilot-module choices, and sequencing assumptions in specs/20211020-sink-source-api-extension/plan.md and specs/20211020-sink-source-api-extension/quickstart.md
-- [ ] T002 [P] Freeze the canonical inventory structure and migration-cluster vocabulary in specs/20211020-sink-source-api-extension/research.md and specs/20211020-sink-source-api-extension/data-model.md
+- [X] T001 [P] Lock helper naming, pilot-module choices, and sequencing assumptions in specs/20211020-sink-source-api-extension/plan.md and specs/20211020-sink-source-api-extension/quickstart.md
+- [X] T002 [P] Freeze the canonical inventory structure and migration-cluster vocabulary in specs/20211020-sink-source-api-extension/research.md and specs/20211020-sink-source-api-extension/data-model.md
 
 ---
 
@@ -22,10 +22,10 @@
 
 **⚠️ CRITICAL**: No user story implementation should start before this phase is complete
 
-- [ ] T003 [P] Add fragment descriptor types and helper prototypes to src/include/module/audio/source_api.h and src/include/module/audio/sink_api.h
-- [ ] T004 [P] Add SOF-side wrapper declarations for fragment helpers and source-side LFT access in src/include/sof/audio/source_api.h, src/include/sof/audio/sink_api.h, and src/include/sof/audio/sink_source_utils.h
-- [ ] T005 [P] Add source-side `get_lft` operation plumbing in src/audio/source_api_helper.c, src/audio/buffers/comp_buffer.c, and src/audio/buffers/ring_buffer.c
-- [ ] T006 Add Doxygen comments and compatibility notes for the new helper/accessor surface in src/include/module/audio/source_api.h, src/include/module/audio/sink_api.h, and src/include/sof/audio/sink_source_utils.h
+- [X] T003 [P] Add fragment descriptor types and helper prototypes to src/include/module/audio/source_api.h and src/include/module/audio/sink_api.h
+- [X] T004 [P] Add SOF-side wrapper declarations for fragment helpers and source-side LFT access in src/include/sof/audio/source_api.h, src/include/sof/audio/sink_api.h, and src/include/sof/audio/sink_source_utils.h
+- [X] T005 [P] Add source-side `get_lft` operation plumbing in src/audio/source_api_helper.c, src/audio/buffers/comp_buffer.c, and src/audio/buffers/ring_buffer.c
+- [X] T006 Add Doxygen comments and compatibility notes for the new helper/accessor surface in src/include/module/audio/source_api.h, src/include/module/audio/sink_api.h, and src/include/sof/audio/sink_source_utils.h
 
 **Checkpoint**: Shared API contract and provider plumbing are in place; user story work can now proceed
 
@@ -39,12 +39,12 @@
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Implement generic fragment wrap and reverse-span helpers in src/audio/sink_source_utils.c
-- [ ] T008 [US1] Implement frame-distance and sample-distance helper wrappers in src/audio/sink_source_utils.c and src/include/sof/audio/sink_source_utils.h
-- [ ] T009 [P] [US1] Replace prepare-time `comp_buffer->stream` metadata access with existing sink/source getters in src/audio/codec/dts/dts.c, src/audio/module_adapter/module/cadence_ipc3.c, src/audio/nxp/eap.c, src/audio/module_adapter/module/waves/waves.c, and src/audio/module_adapter/module/passthrough.c
-- [ ] T010 [P] [US1] Convert the simple DSP pilot from `.process_audio_stream` to `.process` in src/audio/dcblock/dcblock.c using the new fragment helpers and sink/source handles
-- [ ] T011 [P] [US1] Convert the routing pilot from `.process_audio_stream` to `.process` in src/audio/mixer/mixer.c and src/audio/mixer/mixer_generic.c using acquired source and sink fragments
-- [ ] T012 [US1] Validate the helper contract against reverse-scan users in src/audio/volume/volume.c and src/audio/asrc/asrc.c, then adjust src/audio/sink_source_utils.c and src/include/sof/audio/sink_source_utils.h if any backward-inspection gap remains
+- [X] T007 [US1] Implement generic fragment wrap and reverse-span helpers in src/audio/sink_source_utils.c
+- [X] T008 [US1] Implement frame-distance and sample-distance helper wrappers in src/audio/sink_source_utils.c and src/include/sof/audio/sink_source_utils.h
+- [X] T009 [P] [US1] Replace prepare-time `comp_buffer->stream` metadata access with existing sink/source getters in src/audio/codec/dts/dts.c, src/audio/module_adapter/module/cadence_ipc3.c, src/audio/nxp/eap.c, src/audio/module_adapter/module/waves/waves.c, and src/audio/module_adapter/module/passthrough.c
+- [X] T010 [P] [US1] Convert the simple DSP pilot from `.process_audio_stream` to `.process` in src/audio/dcblock/dcblock.c using the new fragment helpers and sink/source handles
+- [X] T011 [P] [US1] Convert the routing pilot from `.process_audio_stream` to `.process` in src/audio/mixer/mixer.c and src/audio/mixer/mixer_generic.c using acquired source and sink fragments
+- [X] T012 [US1] Validate the helper contract against reverse-scan users in src/audio/volume/volume.c and src/audio/asrc/asrc.c, then adjust src/audio/sink_source_utils.c and src/include/sof/audio/sink_source_utils.h if any backward-inspection gap remains
 
 **Checkpoint**: The helper layer is usable by real modules, and the first migration pilots prove the new contract works in both simple and routing paths
 
@@ -58,10 +58,10 @@
 
 ### Implementation for User Story 2
 
-- [ ] T013 [US2] Build the canonical legacy-module inventory and migration clusters in specs/20211020-sink-source-api-extension/research.md
-- [ ] T014 [P] [US2] Record capability-gap, fragment-helper, and cluster relationships in specs/20211020-sink-source-api-extension/data-model.md
-- [ ] T015 [P] [US2] Add reference-module mapping and pilot-module rationale in specs/20211020-sink-source-api-extension/quickstart.md
-- [ ] T016 [US2] Capture refactor-only versus API-blocked classification and next-migration order in specs/20211020-sink-source-api-extension/plan.md and specs/20211020-sink-source-api-extension/research.md
+- [X] T013 [US2] Build the canonical legacy-module inventory and migration clusters in specs/20211020-sink-source-api-extension/research.md
+- [X] T014 [P] [US2] Record capability-gap, fragment-helper, and cluster relationships in specs/20211020-sink-source-api-extension/data-model.md
+- [X] T015 [P] [US2] Add reference-module mapping and pilot-module rationale in specs/20211020-sink-source-api-extension/quickstart.md
+- [X] T016 [US2] Capture refactor-only versus API-blocked classification and next-migration order in specs/20211020-sink-source-api-extension/plan.md and specs/20211020-sink-source-api-extension/research.md
 
 **Checkpoint**: The migration backlog is explicit, auditable, and ready to drive the next conversion phases without rediscovering blockers
 
@@ -75,9 +75,9 @@
 
 ### Implementation for User Story 3
 
-- [ ] T017 [US3] Lock out-of-scope items and source-side LFT fallback semantics in specs/20211020-sink-source-api-extension/contracts/sink-source-api-extension.md
-- [ ] T018 [P] [US3] Update sequencing and dependency boundaries in specs/20211020-sink-source-api-extension/plan.md to keep direct bind, buffer factory, and copier redesign deferred behind this phase
-- [ ] T019 [P] [US3] Update specs/20211020-sink-source-api-extension/quickstart.md to codify the no-test-file rule, validation workflow, and deferred `asrc` and `copier` work
+- [X] T017 [US3] Lock out-of-scope items and source-side LFT fallback semantics in specs/20211020-sink-source-api-extension/contracts/sink-source-api-extension.md
+- [X] T018 [P] [US3] Update sequencing and dependency boundaries in specs/20211020-sink-source-api-extension/plan.md to keep direct bind, buffer factory, and copier redesign deferred behind this phase
+- [X] T019 [P] [US3] Update specs/20211020-sink-source-api-extension/quickstart.md to codify the no-test-file rule, validation workflow, and deferred `asrc` and `copier` work
 
 **Checkpoint**: The first-phase scope is fixed, forward-compatible, and protected from roadmap leakage
 
@@ -87,9 +87,9 @@
 
 **Purpose**: Align public documentation, run the agreed validation path, and leave a clean handoff state
 
-- [ ] T020 [P] Refresh public API wording and contract alignment in src/include/sof/audio/source_api.h, src/include/sof/audio/sink_api.h, and specs/20211020-sink-source-api-extension/contracts/sink-source-api-extension.md
+- [X] T020 [P] Refresh public API wording and contract alignment in src/include/sof/audio/source_api.h, src/include/sof/audio/sink_api.h, and specs/20211020-sink-source-api-extension/contracts/sink-source-api-extension.md
 - [ ] T021 [P] Run the validation workflow described in specs/20211020-sink-source-api-extension/quickstart.md and record any deltas in specs/20211020-sink-source-api-extension/research.md
-- [ ] T022 Clean up compatibility notes and remaining migration guidance in src/audio/source_api_helper.c, src/audio/sink_api_helper.c, and specs/20211020-sink-source-api-extension/plan.md
+- [X] T022 Clean up compatibility notes and remaining migration guidance in src/audio/source_api_helper.c, src/audio/sink_api_helper.c, and specs/20211020-sink-source-api-extension/plan.md
 
 ---
 

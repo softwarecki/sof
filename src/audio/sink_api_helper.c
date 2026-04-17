@@ -3,6 +3,7 @@
  * Copyright(c) 2023 Intel Corporation. All rights reserved.
  */
 
+#include <rtos/symbol.h>
 #include <sof/audio/sink_api.h>
 #include <sof/audio/audio_stream.h>
 
@@ -19,6 +20,18 @@ size_t sink_get_num_of_processed_bytes(struct sof_sink *sink)
 {
 	return sink->num_of_bytes_processed;
 }
+
+int sink_get_buffer_fragment(struct sof_sink *sink, size_t req_size,
+			     struct sink_fragment *fragment)
+{
+	/* Keep fragment acquisition aligned with the existing sink reservation flow. */
+	if (!fragment)
+		return -EINVAL;
+
+	return sink_get_buffer(sink, req_size, &fragment->data_ptr,
+		       &fragment->buffer_start, &fragment->buffer_size);
+}
+EXPORT_SYMBOL(sink_get_buffer_fragment);
 
 void sink_reset_num_of_processed_bytes(struct sof_sink *sink)
 {

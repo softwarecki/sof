@@ -23,6 +23,40 @@ int source_to_sink_copy(struct sof_source *source,
 			struct sof_sink *sink, bool free, size_t size);
 
 /**
+ * Fragment helpers intentionally operate on acquired source/sink tuples.
+ *
+ * They are additive compatibility helpers and do not re-expose
+ * `struct audio_stream` or `struct comp_buffer` to module-facing code.
+ */
+
+/**
+ * Calculate the number of aligned frames available before a source fragment wraps.
+ */
+uint32_t source_fragment_frames_without_wrap(struct sof_source *source,
+					     const struct source_fragment *fragment,
+					     const void *ptr);
+
+/**
+ * Calculate the number of aligned frames available before a sink fragment wraps.
+ */
+uint32_t sink_fragment_frames_without_wrap(struct sof_sink *sink,
+					   const struct sink_fragment *fragment,
+					   const void *ptr);
+
+int source_fragment_samples_without_wrap_s16(const struct source_fragment *fragment,
+						    const void *ptr);
+int source_fragment_samples_without_wrap_s24(const struct source_fragment *fragment,
+						    const void *ptr);
+int source_fragment_samples_without_wrap_s32(const struct source_fragment *fragment,
+						    const void *ptr);
+int sink_fragment_samples_without_wrap_s16(const struct sink_fragment *fragment,
+						  const void *ptr);
+int sink_fragment_samples_without_wrap_s24(const struct sink_fragment *fragment,
+						  const void *ptr);
+int sink_fragment_samples_without_wrap_s32(const struct sink_fragment *fragment,
+						  const void *ptr);
+
+/**
  * fill sink with silence (zeros)
  *
  * @param sink the target to be filled with silence

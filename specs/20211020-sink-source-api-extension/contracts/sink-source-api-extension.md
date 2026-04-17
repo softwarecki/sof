@@ -43,18 +43,30 @@ struct sink_fragment {
 };
 ```
 
-### 2. Generic fragment-navigation helpers
+### 2. SOF-side acquisition wrappers
+
+These wrappers preserve the existing reservation semantics while packaging the
+acquired tuple for helper-layer users.
+
+```c
+int source_get_data_fragment(struct sof_source *source, size_t req_size,
+			     struct source_fragment *fragment);
+
+int sink_get_buffer_fragment(struct sof_sink *sink, size_t req_size,
+			     struct sink_fragment *fragment);
+```
+
+### 3. Generic fragment-navigation helpers
 
 These helpers operate on acquired fragments and do not require new transport semantics.
 
 ```c
-size_t audio_fragment_bytes_until_wrap(const void *ptr,
+int audio_fragment_bytes_without_wrap(const void *ptr,
 				      const void *buffer_start,
 				      size_t buffer_size);
 
-size_t audio_fragment_bytes_before_wrap_reverse(const void *ptr,
-					       const void *buffer_start,
-					       size_t buffer_size);
+int audio_fragment_rewind_bytes_without_wrap(const void *ptr,
+					     const void *buffer_start);
 
 const void *audio_fragment_wrap(const void *ptr,
 				const void *buffer_start,
@@ -63,29 +75,45 @@ const void *audio_fragment_wrap(const void *ptr,
 void *audio_fragment_wrap_w(void *ptr,
 			    void *buffer_start,
 			    size_t buffer_size);
+
+const void *audio_fragment_rewind_wrap(const void *ptr,
+				       const void *buffer_start,
+				       size_t buffer_size);
+
+void *audio_fragment_rewind_wrap_w(void *ptr,
+				   void *buffer_start,
+				   size_t buffer_size);
 ```
 
-### 3. Frame and sample distance helpers
+### 4. Frame and sample distance helpers
 
 These wrappers keep format-aware calculations close to sink/source handles rather than forcing modules to reconstruct them.
 
 ```c
-size_t source_fragment_frames_until_wrap(struct sof_source *source,
-					 const struct source_fragment *fragment);
+uint32_t source_fragment_frames_without_wrap(struct sof_source *source,
+					     const struct source_fragment *fragment,
+					     const void *ptr);
 
-size_t sink_fragment_frames_until_wrap(struct sof_sink *sink,
-				       const struct sink_fragment *fragment);
+uint32_t sink_fragment_frames_without_wrap(struct sof_sink *sink,
+					   const struct sink_fragment *fragment,
+					   const void *ptr);
 
-size_t source_fragment_samples_until_wrap_s16(const struct source_fragment *fragment);
-size_t source_fragment_samples_until_wrap_s24(const struct source_fragment *fragment);
-size_t source_fragment_samples_until_wrap_s32(const struct source_fragment *fragment);
+int source_fragment_samples_without_wrap_s16(const struct source_fragment *fragment,
+						     const void *ptr);
+int source_fragment_samples_without_wrap_s24(const struct source_fragment *fragment,
+						     const void *ptr);
+int source_fragment_samples_without_wrap_s32(const struct source_fragment *fragment,
+						     const void *ptr);
 
-size_t sink_fragment_samples_until_wrap_s16(const struct sink_fragment *fragment);
-size_t sink_fragment_samples_until_wrap_s24(const struct sink_fragment *fragment);
-size_t sink_fragment_samples_until_wrap_s32(const struct sink_fragment *fragment);
+int sink_fragment_samples_without_wrap_s16(const struct sink_fragment *fragment,
+						   const void *ptr);
+int sink_fragment_samples_without_wrap_s24(const struct sink_fragment *fragment,
+						   const void *ptr);
+int sink_fragment_samples_without_wrap_s32(const struct sink_fragment *fragment,
+						   const void *ptr);
 ```
 
-### 4. Source-side latest feeding time
+### 5. Source-side latest feeding time
 
 This is the only proposed core timing accessor addition in this phase.
 
@@ -102,8 +130,9 @@ uint32_t source_get_last_feeding_time(struct sof_source *source);
 
 - The helper layer must be additive; existing sink/source users must continue to compile unchanged.
 - Modules must still acquire and release source and sink fragments through `source_get_data()`, `source_release_data()`, `sink_get_buffer()`, and `sink_commit_buffer()`.
+- `source_get_data_fragment()` and `sink_get_buffer_fragment()` must remain thin wrappers over the existing acquisition calls and must not introduce extra reservation state.
 - The helper layer must not assume linear storage; it must work on circular fragments returned by current implementations.
-- If a source implementation cannot provide source-side LFT immediately, the API must define an explicit fallback or error convention.
+- `source_get_last_feeding_time()` must return `UINT32_MAX` when a provider has not implemented `source_ops.get_lft()` yet.
 
 ## Explicitly Rejected Additions
 

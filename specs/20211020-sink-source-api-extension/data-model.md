@@ -24,43 +24,41 @@ Represents one runtime module still coupled to the legacy stream or buffer inter
 
 ## Source Fragment
 
-Represents the read-only fragment acquired through `source_get_data()`.
+Represents the read-only fragment acquired through `source_get_data_fragment()`.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `source` | `struct sof_source *` | The source handle that owns the fragment. |
 | `data_ptr` | pointer | Current read pointer returned by acquisition. |
 | `buffer_start` | pointer | Logical start of the circular storage. |
 | `buffer_size` | `size_t` | Total size of the circular storage in bytes. |
-| `requested_size` | `size_t` | Amount requested by the caller. |
-| `frame_bytes` | `size_t` | Frame size derived from source format. |
+
+The owning source handle, requested size, and frame size remain call-site context supplied to helper wrappers rather than stored in the descriptor itself.
 
 ### Derived values
 
-- `bytes_until_wrap`
-- `frames_until_wrap`
-- `samples_until_wrap`
-- `bytes_before_rewind_wrap`
+- `bytes_without_wrap`
+- `frames_without_wrap`
+- `samples_without_wrap`
+- `rewind_bytes_without_wrap`
 
 ## Sink Fragment
 
-Represents the writable fragment acquired through `sink_get_buffer()`.
+Represents the writable fragment acquired through `sink_get_buffer_fragment()`.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `sink` | `struct sof_sink *` | The sink handle that owns the fragment. |
 | `data_ptr` | pointer | Current write pointer returned by acquisition. |
 | `buffer_start` | pointer | Logical start of the circular storage. |
 | `buffer_size` | `size_t` | Total size of the circular storage in bytes. |
-| `requested_size` | `size_t` | Amount requested by the caller. |
-| `frame_bytes` | `size_t` | Frame size derived from sink format. |
+
+The owning sink handle, requested size, and frame size remain call-site context supplied to helper wrappers rather than stored in the descriptor itself.
 
 ### Derived values
 
-- `bytes_until_wrap`
-- `frames_until_wrap`
-- `samples_until_wrap`
-- `bytes_before_rewind_wrap`
+- `bytes_without_wrap`
+- `frames_without_wrap`
+- `samples_without_wrap`
+- `rewind_bytes_without_wrap`
 
 ## Fragment Helper
 
@@ -70,7 +68,7 @@ Represents one helper-layer addition that operates on an acquired fragment witho
 | --- | --- | --- |
 | `name` | string | Helper function name. |
 | `layer` | enum | `source`, `sink`, or `shared_fragment_helper`. |
-| `operation` | enum | `wrap`, `distance_to_wrap`, `rewind_distance`, `time_query`. |
+| `operation` | enum | `forward_wrap`, `reverse_wrap`, `distance_without_wrap`, `rewind_distance`, `time_query`, or `acquisition_wrapper`. |
 | `modules_unblocked` | set | Legacy modules that depend on the helper. |
 | `scope` | enum | `phase1_required` or `later_phase`. |
 
@@ -86,6 +84,12 @@ Represents a missing function or helper that must be added before at least one m
 | `severity` | enum | `blocker`, `important`, `future_ready`. |
 | `affected_clusters` | set | Migration clusters blocked by the gap. |
 | `resolved_by` | set | Helper or API additions that close the gap. |
+
+### Phase 1 gaps resolved by this feature
+
+- `gap-fragment-wrap` -> `audio_fragment_bytes_without_wrap`, `audio_fragment_wrap`, `audio_fragment_wrap_w`
+- `gap-fragment-rewind` -> `audio_fragment_rewind_bytes_without_wrap`, `audio_fragment_rewind_wrap`, `audio_fragment_rewind_wrap_w`
+- `gap-source-lft` -> `source_ops.get_lft`, `source_get_last_feeding_time`
 
 ## Migration Cluster
 
@@ -108,6 +112,7 @@ Represents an already migrated module that demonstrates how the new sink/source 
 | `name` | string | Reference module name. |
 | `path` | string | Path under `src/audio/`. |
 | `why_useful` | string | The migration pattern it demonstrates. |
+| `pilot_reason` | optional string | Why it was chosen as a validation pilot in this phase, if applicable. |
 
 ## Relationships
 
@@ -115,4 +120,5 @@ Represents an already migrated module that demonstrates how the new sink/source 
 - A `Legacy Module` may depend on zero or more `Capability Gaps`.
 - A `Capability Gap` is resolved by one or more `Fragment Helpers` or one public accessor.
 - A `Legacy Module` migration may cite one or more `Reference Modules`.
+- A `Legacy Module` may become a `Reference Module` once a pilot conversion lands, as happened for `dcblock` and `mixer` in this phase.
 - A `Source Fragment` or `Sink Fragment` is the runtime object operated on by `Fragment Helpers`.

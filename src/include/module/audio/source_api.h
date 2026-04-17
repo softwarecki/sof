@@ -54,6 +54,15 @@ struct sof_ipc_stream_params;
 struct processing_module;
 
 /**
+ * @brief Descriptor of a fragment acquired from a source.
+ */
+struct source_fragment {
+	const void *data_ptr;
+	const void *buffer_start;
+	size_t buffer_size;
+};
+
+/**
  * this is a definition of internals of source API
  *
  * The clients of stream API should use access functions provided below!
@@ -76,6 +85,14 @@ struct source_ops {
 	 * see comment of source_release_data()
 	 */
 	int (*release_data)(struct sof_source *source, size_t free_size);
+
+	/**
+	 * OPTIONAL: get latest feeding time for this source.
+	 *
+	 * The result is a number of microseconds since "NOW", where "now" means the
+	 * start of the last LL cycle, as described in zephyr_dp_schedule.c.
+	 */
+	uint32_t (*get_lft)(struct sof_source *source);
 
 	/**
 	 * OPTIONAL: Notification to the source implementation about changes in audio format
@@ -230,6 +247,59 @@ int source_get_data_s32(struct sof_source *source, size_t req_size, int32_t cons
 			int32_t const **buffer_start, int *buffer_samples);
 
 /**
+ * @brief Calculate the number of bytes from @p ptr to the forward wrap point.
+ */
+int audio_fragment_bytes_without_wrap(const void *ptr,
+				      const void *buffer_start,
+				      size_t buffer_size);
+
+/**
+ * @brief Calculate the number of bytes from @p ptr to the backward wrap point.
+ */
+int audio_fragment_rewind_bytes_without_wrap(const void *ptr,
+					     const void *buffer_start);
+
+/**
+ * @brief Wrap a read pointer that moved past the end of a fragment.
+ */
+const void *audio_fragment_wrap(const void *ptr,
+				const void *buffer_start,
+				size_t buffer_size);
+
+/**
+ * @brief Wrap a read pointer that moved before the start of a fragment.
+ */
+const void *audio_fragment_rewind_wrap(const void *ptr,
+				       const void *buffer_start,
+				       size_t buffer_size);
+
+static inline int source_fragment_bytes_without_wrap(const struct source_fragment *fragment,
+					     const void *ptr)
+{
+	return audio_fragment_bytes_without_wrap(ptr, fragment->buffer_start,
+						 fragment->buffer_size);
+}
+
+static inline int source_fragment_rewind_bytes_without_wrap(const struct source_fragment *fragment,
+						    const void *ptr)
+{
+	return audio_fragment_rewind_bytes_without_wrap(ptr, fragment->buffer_start);
+}
+
+static inline const void *source_fragment_wrap(const struct source_fragment *fragment,
+					       const void *ptr)
+{
+	return audio_fragment_wrap(ptr, fragment->buffer_start, fragment->buffer_size);
+}
+
+static inline const void *source_fragment_rewind_wrap(const struct source_fragment *fragment,
+						      const void *ptr)
+{
+	return audio_fragment_rewind_wrap(ptr, fragment->buffer_start,
+						fragment->buffer_size);
+}
+
+/**
  * Releases fragment previously obtained by source_get_data()
  * Once called, the data are no longer available for the caller
  *
@@ -275,6 +345,13 @@ static inline uint32_t source_get_pipeline_id(struct sof_source *source)
 {
 	return source->audio_stream_params->pipeline_id;
 }
+
+/**
+ * @brief Get the latest time a source can be fed without starving its readers.
+ *
+ * @retval UINT32_MAX when the source implementation does not provide LFT yet.
+ */
+uint32_t source_get_last_feeding_time(struct sof_source *source);
 
 /**
  * @brief hook to be called when a module connects to the API

@@ -31,6 +31,16 @@ void sink_init(struct sof_sink *sink, const struct sink_ops *ops,
 size_t sink_get_num_of_processed_bytes(struct sof_sink *sink);
 
 /**
+ * Populate a sink fragment descriptor from sink_get_buffer().
+ *
+ * This is a thin compatibility wrapper around the existing acquisition call;
+ * it packages the returned tuple without changing reservation or commit
+ * semantics.
+ */
+int sink_get_buffer_fragment(struct sof_sink *sink, size_t req_size,
+			     struct sink_fragment *fragment);
+
+/**
  * sets counter of total number of bytes processed  to zero
  */
 void sink_reset_num_of_processed_bytes(struct sof_sink *sink);
