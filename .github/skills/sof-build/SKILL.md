@@ -109,6 +109,28 @@ $cygSrc  = "/cygdrive/$drive/$relPath/"
 2. Add matching `pickString` option to the `config` input in `.vscode/tasks.json`
 3. Mirror the corresponding entry in `CppProperties.json` for IntelliSense
 
+## Clean Build
+
+Use **`ilab: Clean && Build`** (action `clean`) to delete the remote build directory and rebuild from scratch.
+
+**When to use:**
+- After structural CMake or Kconfig changes that incremental builds won't pick up
+- When the build state is suspected corrupt
+- After resolving compile errors that left partial object files
+
+**How to run:**
+- VS Code: `Terminal > Run Task > ilab: Clean && Build`, pick config (e.g. `ptl`)
+- Terminal: `powershell -ExecutionPolicy Bypass -File .vscode\sof-build.ps1 -WorkspaceFolder <root> -Action clean -Config ptl`
+
+**Recognizing success:**
+The build ends with:
+```
+#################### COPY ARTIFACTS ####################
+```
+followed by the artifact tree (`sof-ptl.ri`, `sof-ptl-openmodules.ri`, llext modules, etc.) and exit code 0.
+
+**Note:** Clean build takes significantly longer than incremental — it recompiles all ~530 objects.
+
 ## Common Build Failures
 
 | Error | Cause | Fix |
