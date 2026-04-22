@@ -109,6 +109,23 @@ $cygSrc  = "/cygdrive/$drive/$relPath/"
 2. Add matching `pickString` option to the `config` input in `.vscode/tasks.json`
 3. Mirror the corresponding entry in `CppProperties.json` for IntelliSense
 
+## Update Build
+
+Use **`ilab: Update && Build`** (action `update`) to run `west update` on the remote before building.
+
+**When to use:**
+- After changing `west.yml` (manifest) — e.g. bumping Zephyr or HAL revision
+- When the remote Zephyr workspace is out of sync with the manifest
+- Does NOT clean the build directory — incremental build follows the update
+
+**How to run:**
+- VS Code: `Terminal > Run Task > ilab: Update && Build`, pick config (e.g. `ptl`)
+- Terminal: `powershell -ExecutionPolicy Bypass -File .vscode\sof-build.ps1 -WorkspaceFolder <root> -Action update -Config ptl`
+
+**Notes:**
+- `west update` runs non-interactively on remote, no input required — just takes time
+- Success recognized by `#################### COPY ARTIFACTS ####################` + exit code 0
+
 ## Clean Build
 
 Use **`ilab: Clean && Build`** (action `clean`) to delete the remote build directory and rebuild from scratch.
