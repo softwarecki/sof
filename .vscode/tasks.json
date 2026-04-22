@@ -1,0 +1,178 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        // ── Firmware build ─────────────────────────────────────────────────────
+        {
+            // Equivalent of "ilab: Kompiluj" from .vs/tasks.vs.json
+            // Syncs the project directory via rsync then runs build_vs.sh on the remote machine
+            "label": "ilab: Build",
+            "type": "process",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}\\.vscode\\sof-build.ps1",
+                "-WorkspaceFolder", "${workspaceFolder}",
+                "-Action", "build",
+                "-Config", "${input:config}"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            // Equivalent of "ilab: Update && Build" - syncs, updates west dependencies then builds
+            "label": "ilab: Update && Build",
+            "type": "process",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}\\.vscode\\sof-build.ps1",
+                "-WorkspaceFolder", "${workspaceFolder}",
+                "-Action", "update",
+                "-Config", "${input:config}"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            // Equivalent of "ilab: Clean && Build" - syncs then performs a clean build from scratch
+            "label": "ilab: Clean && Build",
+            "type": "process",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}\\.vscode\\sof-build.ps1",
+                "-WorkspaceFolder", "${workspaceFolder}",
+                "-Action", "clean",
+                "-Config", "${input:config}"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            // Equivalent of "ilab: llext build" - builds the llext loadable module
+            "label": "ilab: llext build",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}\\.vscode\\sof-build.ps1",
+                "-WorkspaceFolder", "${workspaceFolder}",
+                "-Action", "llext",
+                "-Config", "${input:config}"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+
+        // ── lmdk library build ─────────────────────────────────────────────────
+        {
+            // Equivalent of "Budowanie libki" - use when the active file is under lmdk/libraries/
+            // Requires: an open file from the lmdk/libraries/* directory
+            "label": "Build lmdk library",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}\\.vscode\\sof-build.ps1",
+                "-WorkspaceFolder", "${workspaceFolder}",
+                "-Action", "lib",
+                "-Config", "${input:config}",
+                "-RelativeFile", "${relativeFile}"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+
+        // ── Download build artifacts ───────────────────────────────────────────
+        {
+            // Equivalent of "pobieranie elf" - downloads .elf files from the remote machine
+            // Requires: directory ..\build-<platform>\zephyr\ must exist locally
+            "label": "Download elf",
+            "type": "shell",
+            "command": "pscp",
+            "args": [
+                "-scp",
+                "-unsafe",
+                "sof_dev:~/git/zephyr/build-${input:config}/zephyr/*.elf",
+                "${workspaceFolder}\\..\\build-${input:config}\\zephyr\\"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            // Equivalent of "pobieranie build dir" - downloads the entire build directory
+            "label": "Download build dir",
+            "type": "shell",
+            "command": "pscp",
+            "args": [
+                "-scp",
+                "-r",
+                "-unsafe",
+                "sof_dev:~/git/zephyr/build-${input:config}",
+                "${workspaceFolder}\\..\\"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+    ],
+
+    // ── Input variables ─────────────────────────────────────────────────────────
+    "inputs": [
+        {
+            // Single config picker - mirrors named configurations from CppProperties.json.
+            // Each entry encodes both the target platform and overlay used by build_vs.sh.
+            "id": "config",
+            "type": "pickString",
+            "description": "Build configuration",
+            "options": [
+                "mtl",
+                "mtl-fpga",
+                "lnl",
+                "lnl-fpga",
+                "ptl",
+                "ptl-fpga",
+                "ptl-fpga-userspace",
+                "ptl-sim",
+                "tgl",
+                "wcl-fpga",
+                "nvl",
+                "nvl-fpga"
+            ],
+            "default": "ptl"
+        }
+    ]
+}
