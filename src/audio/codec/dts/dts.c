@@ -236,19 +236,25 @@ static int dts_codec_init_process(struct processing_module *mod)
 	return ret;
 }
 
-static int
-dts_codec_process(struct processing_module *mod,
-		  struct input_stream_buffer *input_buffers, int num_input_buffers,
-		  struct output_stream_buffer *output_buffers, int num_output_buffers)
+static int dts_codec_process(struct processing_module *mod,
+			     struct sof_source **sources, int num_of_sources,
+			     struct sof_sink **sinks, int num_of_sinks)
 {
 	int ret;
 	struct comp_dev *dev = mod->dev;
 	struct module_data *codec = &mod->priv;
 	DtsSofInterfaceResult dts_result;
 	unsigned int bytes_processed = 0;
+	const void *src_ptr;
+	const void *src_buf_start;
+	size_t src_buf_size;
+	void *snk_ptr;
+	void *snk_buf_start;
+	size_t snk_buf_size;
+	size_t size_to_wrap;
 
 	/* Proceed only if we have enough data to fill the module buffer completely */
-	if (input_buffers[0].size < codec->mpd.in_buff_size) {
+	if (source_get_data_available(sources[0]) < codec->mpd.in_buff_size) {
 		comp_dbg(dev, "not enough data to process");
 		return -ENODATA;
 	}
@@ -259,8 +265,23 @@ dts_codec_process(struct processing_module *mod,
 			return ret;
 	}
 
-	memcpy_s(codec->mpd.in_buff, codec->mpd.in_buff_size,
-		 input_buffers[0].data, codec->mpd.in_buff_size);
+	ret = source_get_data(sources[0], codec->mpd.in_buff_size,
+			      &src_ptr, &src_buf_start, &src_buf_size);
+	if (ret)
+		return ret;
+
+	/* src_buf_size is the total ring buffer size; handle wrap when copying to in_buff */
+	size_to_wrap = (const uint8_t *)src_buf_start + src_buf_size - (const uint8_t *)src_ptr;
+	if (codec->mpd.in_buff_size <= size_to_wrap) {
+		memcpy_s(codec->mpd.in_buff, codec->mpd.in_buff_size,
+			 src_ptr, codec->mpd.in_buff_size);
+	} else {
+		memcpy_s(codec->mpd.in_buff, codec->mpd.in_buff_size,
+			 src_ptr, size_to_wrap);
+		memcpy_s((uint8_t *)codec->mpd.in_buff + size_to_wrap,
+			 codec->mpd.in_buff_size - size_to_wrap,
+			 src_buf_start, codec->mpd.in_buff_size - size_to_wrap);
+	}
 	codec->mpd.avail = codec->mpd.in_buff_size;
 
 	comp_dbg(dev, "start");
@@ -270,7 +291,7 @@ dts_codec_process(struct processing_module *mod,
 
 	codec->mpd.consumed = !ret ? bytes_processed : 0;
 	codec->mpd.produced = !ret ? bytes_processed : 0;
-	input_buffers[0].consumed = codec->mpd.consumed;
+	source_release_data(sources[0], codec->mpd.consumed);
 
 	if (ret) {
 		comp_err(dev, "failed %d %d", ret, dts_result);
@@ -278,9 +299,22 @@ dts_codec_process(struct processing_module *mod,
 	}
 
 	/* copy the produced samples into the output buffer */
-	memcpy_s(output_buffers[0].data, codec->mpd.produced, codec->mpd.out_buff,
-		 codec->mpd.produced);
-	output_buffers[0].size = codec->mpd.produced;
+	ret = sink_get_buffer(sinks[0], codec->mpd.produced,
+			      &snk_ptr, &snk_buf_start, &snk_buf_size);
+	if (ret)
+		return ret;
+
+	/* snk_buf_size is the total ring buffer size; handle wrap when copying from out_buff */
+	size_to_wrap = (uint8_t *)snk_buf_start + snk_buf_size - (uint8_t *)snk_ptr;
+	if (codec->mpd.produced <= size_to_wrap) {
+		memcpy_s(snk_ptr, codec->mpd.produced, codec->mpd.out_buff, codec->mpd.produced);
+	} else {
+		memcpy_s(snk_ptr, size_to_wrap, codec->mpd.out_buff, size_to_wrap);
+		memcpy_s(snk_buf_start, codec->mpd.produced - size_to_wrap,
+			 (const uint8_t *)codec->mpd.out_buff + size_to_wrap,
+			 codec->mpd.produced - size_to_wrap);
+	}
+	sink_commit_buffer(sinks[0], codec->mpd.produced);
 
 	comp_dbg(dev, "done");
 
@@ -458,7 +492,7 @@ dts_codec_set_configuration(struct processing_module *mod, uint32_t config_id,
 static const struct module_interface dts_interface = {
 	.init = dts_codec_init,
 	.prepare = dts_codec_prepare,
-	.process_raw_data = dts_codec_process,
+	.process = dts_codec_process,
 	.set_configuration = dts_codec_set_configuration,
 	.reset = dts_codec_reset,
 	.free = dts_codec_free
