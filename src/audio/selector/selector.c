@@ -16,6 +16,7 @@
 #include <sof/audio/component.h>
 #include <sof/audio/pipeline.h>
 #include <sof/audio/selector.h>
+#include <sof/audio/sink_source_utils.h>
 #include <sof/audio/ipc-config.h>
 #include <sof/common.h>
 #include <rtos/panic.h>
@@ -374,9 +375,9 @@ static int selector_copy(struct comp_dev *dev)
 {
 	struct comp_data *cd = comp_get_drvdata(dev);
 	struct comp_buffer *sink, *source;
-	uint32_t frames;
-	uint32_t source_bytes;
-	uint32_t sink_bytes;
+	struct sof_source *src;
+	struct sof_sink *snk;
+	size_t frames;
 
 	comp_dbg(dev, "entry");
 
@@ -384,26 +385,19 @@ static int selector_copy(struct comp_dev *dev)
 	source = comp_dev_get_first_data_producer(dev);
 	sink = comp_dev_get_first_data_consumer(dev);
 
-	if (!audio_stream_get_avail(&source->stream))
+	src = audio_buffer_get_source(&source->audio_buffer);
+	snk = audio_buffer_get_sink(&sink->audio_buffer);
+
+	if (!source_get_data_available(src))
 		return PPL_STATUS_PATH_STOP;
 
-	frames = audio_stream_avail_frames(&source->stream, &sink->stream);
-	source_bytes = frames * audio_stream_frame_bytes(&source->stream);
-	sink_bytes = frames * audio_stream_frame_bytes(&sink->stream);
+	frames = MIN(source_get_data_frames_available(src),
+		     sink_get_free_frames(snk));
 
-	comp_dbg(dev, "source_bytes = 0x%x, sink_bytes = 0x%x",
-		 source_bytes, sink_bytes);
+	comp_dbg(dev, "frames = 0x%zx", frames);
 
 	/* copy selected channels from in to out */
-	buffer_stream_invalidate(source, source_bytes);
-	cd->sel_func(dev, &sink->stream, &source->stream, frames);
-	buffer_stream_writeback(sink, sink_bytes);
-
-	/* calculate new free and available */
-	comp_update_buffer_produce(sink, sink_bytes);
-	comp_update_buffer_consume(source, source_bytes);
-
-	return 0;
+	return cd->sel_func(dev, snk, src, frames);
 }
 
 /**
@@ -943,15 +937,11 @@ static int selector_find_coefficients(struct processing_module *mod)
  * \return Error code.
  */
 static int selector_process(struct processing_module *mod,
-			    struct input_stream_buffer *input_buffers,
-			    int num_input_buffers,
-			    struct output_stream_buffer *output_buffers,
-			    int num_output_buffers)
+			    struct sof_source **sources, int num_of_sources,
+			    struct sof_sink **sinks, int num_of_sinks)
 {
-	struct audio_stream *source;
-	struct audio_stream *sink;
 	struct comp_data *cd = module_get_private_data(mod);
-	uint32_t avail_frames = input_buffers[0].size;
+	size_t avail_frames = source_get_data_frames_available(sources[0]);
 	int ret;
 
 	comp_dbg(mod->dev, "entry");
@@ -963,17 +953,13 @@ static int selector_process(struct processing_module *mod,
 			return ret;
 	}
 
-	if (cd->passthrough) {
-		source = input_buffers->data;
-		sink = output_buffers->data;
-		audio_stream_copy(source, 0, sink, 0, avail_frames * cd->config.in_channels_count);
-		module_update_buffer_position(input_buffers, output_buffers, avail_frames);
-		return 0;
-	}
+	if (cd->passthrough)
+		return source_to_sink_copy(sources[0], sinks[0], false,
+					   avail_frames * source_get_frame_bytes(sources[0]));
 
 	if (avail_frames)
 		/* copy selected channels from in to out */
-		cd->sel_func(mod, input_buffers, output_buffers, avail_frames);
+		return cd->sel_func(mod, sources[0], sinks[0], avail_frames);
 
 	return 0;
 }
@@ -1079,7 +1065,7 @@ static int selector_reset(struct processing_module *mod)
 static const struct module_interface selector_interface = {
 	.init			= selector_init,
 	.prepare		= selector_prepare,
-	.process_audio_stream	= selector_process,
+	.process		= selector_process,
 	.set_configuration	= selector_set_config,
 	.get_configuration	= selector_get_config,
 	.reset			= selector_reset,

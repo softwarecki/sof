@@ -14,15 +14,13 @@
 #include <sof/audio/component.h>
 #include <sof/audio/format.h>
 #include <sof/audio/selector.h>
+#include <sof/audio/sink_source_utils.h>
 #include <sof/common.h>
 #include <ipc/stream.h>
 #include <stddef.h>
 #include <stdint.h>
 
 LOG_MODULE_DECLARE(selector, CONFIG_SOF_LOG_LEVEL);
-
-#define BYTES_TO_S16_SAMPLES	1
-#define BYTES_TO_S32_SAMPLES	2
 
 #if CONFIG_IPC_MAJOR_3
 #if CONFIG_FORMAT_S16LE
@@ -33,37 +31,53 @@ LOG_MODULE_DECLARE(selector, CONFIG_SOF_LOG_LEVEL);
  * \param[in,out] source Source buffer.
  * \param[in] frames Number of frames to process.
  */
-static void sel_s16le_1ch(struct comp_dev *dev, struct audio_stream *sink,
-			  const struct audio_stream *source, uint32_t frames)
+static int sel_s16le_1ch(struct comp_dev *dev, struct sof_sink *sink, struct sof_source *source,
+			 size_t frames)
 {
 	struct comp_data *cd = comp_get_drvdata(dev);
-	int16_t *src = audio_stream_get_rptr(source);
-	int16_t *dest = audio_stream_get_wptr(sink);
-	int16_t *src_ch;
-	int nmax;
-	int i;
-	int n;
-	int processed = 0;
-	const int source_frame_bytes = audio_stream_frame_bytes(source);
-	const unsigned int nch = audio_stream_get_channels(source);
 	const unsigned int sel_channel = cd->config.sel_channel; /* 0 to nch - 1 */
+	const int source_frame_bytes = source_get_frame_bytes(source);
+	const unsigned int nch = source_get_channels(source);
+	const int16_t *src, *src_start, *src_ch;
+	int16_t *dst, *dst_start;
+	int src_samples, dst_samples;
+	size_t i, n, processed = 0;
+	int ret;
+
+	ret = source_get_data_s16(source, frames * source_frame_bytes, &src, &src_start,
+				  &src_samples);
+	if (ret)
+		return ret;
+
+	ret = sink_get_buffer_s16(sink, frames * sizeof(*dst), &dst, &dst_start, &dst_samples);
+	if (ret) {
+		source_release_data(source, 0);
+		return ret;
+	}
 
 	while (processed < frames) {
 		n = frames - processed;
-		nmax = audio_stream_bytes_without_wrap(source, src) / source_frame_bytes;
-		n = MIN(n, nmax);
-		nmax = audio_stream_bytes_without_wrap(sink, dest) >> BYTES_TO_S16_SAMPLES;
-		n = MIN(n, nmax);
+		n = MIN(n, (cir_buf_samples_to_wrap_s16(src, src_start, src_samples) / nch));
+		n = MIN(n, cir_buf_samples_to_wrap_s16(dst, dst_start, dst_samples));
 		src_ch = src + sel_channel;
 		for (i = 0; i < n; i++) {
-			*dest = *src_ch;
+			*dst = *src_ch;
 			src_ch += nch;
-			dest++;
+			dst++;
 		}
-		src = audio_stream_wrap(source, src + nch * n);
-		dest = audio_stream_wrap(sink, dest);
+
+		src += n * nch;
+		if (src >= src_start + src_samples)
+			src = src_start;
+		if (dst >= dst_start + dst_samples)
+			dst = dst_start;
 		processed += n;
 	}
+
+	ret = source_release_data(source, frames * source_frame_bytes);
+	if (ret)
+		return ret;
+	return sink_commit_buffer(sink, frames * sizeof(*dst));
 }
 
 /**
@@ -73,27 +87,45 @@ static void sel_s16le_1ch(struct comp_dev *dev, struct audio_stream *sink,
  * \param[in,out] source Source buffer.
  * \param[in] frames Number of frames to process.
  */
-static void sel_s16le_nch(struct comp_dev *dev, struct audio_stream *sink,
-			  const struct audio_stream *source, uint32_t frames)
+static int sel_s16le_nch(struct comp_dev *dev, struct sof_sink *sink,
+			  struct sof_source *source, size_t frames)
 {
-	int8_t *src = audio_stream_get_rptr(source);
-	int8_t *dst = audio_stream_get_wptr(sink);
-	int bmax;
-	int b;
-	int bytes_copied = 0;
-	const int bytes_total = frames * audio_stream_frame_bytes(source);
+	const int frame_bytes = source_get_frame_bytes(source);
+	const unsigned int nch = source_get_channels(source);
+	const int16_t *src, *src_start;
+	int16_t *dst, *dst_start;
+	int src_samples, dst_samples;
+	size_t n, processed = 0;
+	int ret;
 
-	while (bytes_copied < bytes_total) {
-		b = bytes_total - bytes_copied;
-		bmax = audio_stream_bytes_without_wrap(source, src);
-		b = MIN(b, bmax);
-		bmax = audio_stream_bytes_without_wrap(sink, dst);
-		b = MIN(b, bmax);
-		memcpy_s(dst, b, src, b);
-		src = audio_stream_wrap(source, src + b);
-		dst = audio_stream_wrap(sink, dst + b);
-		bytes_copied += b;
+	ret = source_get_data_s16(source, frames * frame_bytes, &src, &src_start, &src_samples);
+	if (ret)
+		return ret;
+
+	ret = sink_get_buffer_s16(sink, frames * frame_bytes, &dst, &dst_start, &dst_samples);
+	if (ret) {
+		source_release_data(source, 0);
+		return ret;
 	}
+
+	while (processed < frames) {
+		n = frames - processed;
+		n = MIN(n, (cir_buf_samples_to_wrap_s16(src, src_start, src_samples) / nch));
+		n = MIN(n, (cir_buf_samples_to_wrap_s16(dst, dst_start, dst_samples) / nch));
+		memcpy_s(dst, n * frame_bytes, src, n * frame_bytes);
+		src += n * nch;
+		dst += n * nch;
+		if (src >= src_start + src_samples)
+			src = src_start;
+		if (dst >= dst_start + dst_samples)
+			dst = dst_start;
+		processed += n;
+	}
+
+	ret = source_release_data(source, frames * frame_bytes);
+	if (ret)
+		return ret;
+	return sink_commit_buffer(sink, frames * frame_bytes);
 }
 #endif /* CONFIG_FORMAT_S16LE */
 
@@ -105,37 +137,52 @@ static void sel_s16le_nch(struct comp_dev *dev, struct audio_stream *sink,
  * \param[in,out] source Source buffer.
  * \param[in] frames Number of frames to process.
  */
-static void sel_s32le_1ch(struct comp_dev *dev, struct audio_stream *sink,
-			  const struct audio_stream *source, uint32_t frames)
+static int sel_s32le_1ch(struct comp_dev *dev, struct sof_sink *sink, struct sof_source *source,
+			 size_t frames)
 {
 	struct comp_data *cd = comp_get_drvdata(dev);
-	int32_t *src = audio_stream_get_rptr(source);
-	int32_t *dest = audio_stream_get_wptr(sink);
-	int32_t *src_ch;
-	int nmax;
-	int i;
-	int n;
-	int processed = 0;
-	const int source_frame_bytes = audio_stream_frame_bytes(source);
-	const unsigned int nch = audio_stream_get_channels(source);
 	const unsigned int sel_channel = cd->config.sel_channel; /* 0 to nch - 1 */
+	const int source_frame_bytes = source_get_frame_bytes(source);
+	const unsigned int nch = source_get_channels(source);
+	const int32_t *src, *src_ch, *src_start;
+	int32_t *dst, *dst_start;
+	int src_samples, dst_samples;
+	size_t i, n, processed = 0;
+	int ret;
+
+	ret = source_get_data_s32(source, frames * source_frame_bytes, &src, &src_start,
+				  &src_samples);
+	if (ret)
+		return ret;
+
+	ret = sink_get_buffer_s32(sink, frames * sizeof(int32_t), &dst, &dst_start, &dst_samples);
+	if (ret) {
+		source_release_data(source, 0);
+		return ret;
+	}
 
 	while (processed < frames) {
 		n = frames - processed;
-		nmax = audio_stream_bytes_without_wrap(source, src) / source_frame_bytes;
-		n = MIN(n, nmax);
-		nmax = audio_stream_bytes_without_wrap(sink, dest) >> BYTES_TO_S32_SAMPLES;
-		n = MIN(n, nmax);
+		n = MIN(n, cir_buf_samples_to_wrap_s32(src, src_start, src_samples) / nch);
+		n = MIN(n, cir_buf_samples_to_wrap_s32(dst, dst_start, dst_samples));
 		src_ch = src + sel_channel;
 		for (i = 0; i < n; i++) {
-			*dest = *src_ch;
-			src_ch += nch;
-			dest++;
+			*dst = *src_ch;
+			*src_ch += nch;
+			dst++;
 		}
-		src = audio_stream_wrap(source, src + nch * n);
-		dest = audio_stream_wrap(sink, dest);
+		src += nch * n;
+		if (src >= src_start + src_samples)
+			src = src_start;
+		if (dst >= dst_start + dst_samples)
+			dst = dst_start;
 		processed += n;
 	}
+
+	ret = source_release_data(source, frames * source_frame_bytes);
+	if (ret)
+		return ret;
+	return sink_commit_buffer(sink, frames * sizeof(int32_t));
 }
 
 /**
@@ -145,27 +192,47 @@ static void sel_s32le_1ch(struct comp_dev *dev, struct audio_stream *sink,
  * \param[in,out] source Source buffer.
  * \param[in] frames Number of frames to process.
  */
-static void sel_s32le_nch(struct comp_dev *dev, struct audio_stream *sink,
-			  const struct audio_stream *source, uint32_t frames)
+static int sel_s32le_nch(struct comp_dev *dev, struct sof_sink *sink, struct sof_source *source,
+			 size_t frames)
 {
-	int8_t *src = audio_stream_get_rptr(source);
-	int8_t *dst = audio_stream_get_wptr(sink);
-	int bmax;
-	int b;
-	int bytes_copied = 0;
-	const int bytes_total = frames * audio_stream_frame_bytes(source);
+	const int frame_bytes = source_get_frame_bytes(source);
+	const unsigned int nch = source_get_channels(source);
+	const int32_t *src, *src_start;
+	int32_t *dst, *dst_start;
+	int src_samples, dst_samples;
+	size_t n, processed = 0;
+	int ret;
 
-	while (bytes_copied < bytes_total) {
-		b = bytes_total - bytes_copied;
-		bmax = audio_stream_bytes_without_wrap(source, src);
-		b = MIN(b, bmax);
-		bmax = audio_stream_bytes_without_wrap(sink, dst);
-		b = MIN(b, bmax);
-		memcpy_s(dst, b, src, b);
-		src = audio_stream_wrap(source, src + b);
-		dst = audio_stream_wrap(sink, dst + b);
-		bytes_copied += b;
+	ret = source_get_data_s32(source, frames * frame_bytes,
+				  &src, &src_start, &src_samples);
+	if (ret)
+		return ret;
+
+	ret = sink_get_buffer_s32(sink, frames * frame_bytes,
+				  &dst, &dst_start, &dst_samples);
+	if (ret) {
+		source_release_data(source, 0);
+		return ret;
 	}
+
+	while (processed < frames) {
+		n = frames - processed;
+		n = MIN(n, cir_buf_samples_to_wrap_s32(src, src_start, src_samples) / nch);
+		n = MIN(n, cir_buf_samples_to_wrap_s32(dst, dst_start, dst_samples) / nch);
+		memcpy_s(dst, n * frame_bytes, src, n * frame_bytes);
+		src += n * nch;
+		dst += n * nch;
+		if (src >= src_start + src_samples)
+			src = src_start;
+		if (dst >= dst_start + dst_samples)
+			dst = dst_start;
+		processed += n;
+	}
+
+	ret = source_release_data(source, frames * frame_bytes);
+	if (ret)
+		return ret;
+	return sink_commit_buffer(sink, frames * frame_bytes);
 }
 #endif /* CONFIG_FORMAT_S24LE || CONFIG_FORMAT_S32LE */
 
@@ -180,7 +247,7 @@ static void sel_s32le_nch(struct comp_dev *dev, struct audio_stream *sink,
  * \param[in] coeffs_config IPC4 micsel config with Q10 coefficients.
  */
 static void process_frame_s16le(int16_t dst[], int dst_channels,
-				int16_t src[], int src_channels,
+				const int16_t src[], int src_channels,
 				struct ipc4_selector_coeffs_config *coeffs_config)
 {
 	int32_t accum;
@@ -203,41 +270,55 @@ static void process_frame_s16le(int16_t dst[], int dst_channels,
  * \param[in,out] bsink Sink buffer.
  * \param[in] frames Number of frames to process.
  */
-static void sel_s16le(struct processing_module *mod, struct input_stream_buffer *bsource,
-		      struct output_stream_buffer *bsink, uint32_t frames)
+static int sel_s16le(struct processing_module *mod, struct sof_source *source,
+		      struct sof_sink *sink, size_t frames)
 {
 	struct comp_data *cd = module_get_private_data(mod);
-	struct audio_stream *source = bsource->data;
-	struct audio_stream *sink = bsink->data;
-	int16_t *src = audio_stream_get_rptr(source);
-	int16_t *dest = audio_stream_get_wptr(sink);
-	int nmax;
-	int i;
-	int n;
-	int processed = 0;
-	int source_frame_bytes = audio_stream_frame_bytes(source);
-	int sink_frame_bytes = audio_stream_frame_bytes(sink);
-	int n_chan_source = MIN(SEL_SOURCE_CHANNELS_MAX, audio_stream_get_channels(source));
-	int n_chan_sink = MIN(SEL_SINK_CHANNELS_MAX, audio_stream_get_channels(sink));
+	const int n_chan_source = MIN(SEL_SOURCE_CHANNELS_MAX, (int)source_get_channels(source));
+	const int n_chan_sink = MIN(SEL_SINK_CHANNELS_MAX, (int)sink_get_channels(sink));
+	const int source_frame_bytes = source_get_frame_bytes(source);
+	const unsigned int src_channels = source_get_channels(source);
+	const unsigned int dst_channels = sink_get_channels(sink);
+	const int sink_frame_bytes = sink_get_frame_bytes(sink);
+	const int16_t *src, *src_start;
+	int16_t *dst, *dst_start;
+	int src_samples, dst_samples;
+	size_t i, n, processed = 0;
+	int ret;
+
+	ret = source_get_data_s16(source, frames * source_frame_bytes,
+				  &src, &src_start, &src_samples);
+	if (ret)
+		return ret;
+
+	ret = sink_get_buffer_s16(sink, frames * sink_frame_bytes,
+				  &dst, &dst_start, &dst_samples);
+	if (ret) {
+		source_release_data(source, 0);
+		return ret;
+	}
 
 	while (processed < frames) {
 		n = frames - processed;
-		nmax = audio_stream_bytes_without_wrap(source, src) / source_frame_bytes;
-		n = MIN(n, nmax);
-		nmax = audio_stream_bytes_without_wrap(sink, dest) / sink_frame_bytes;
-		n = MIN(n, nmax);
+		n = MIN(n, cir_buf_samples_to_wrap_s16(src, src_start, src_samples) / src_channels);
+		n = MIN(n, cir_buf_samples_to_wrap_s16(dst, dst_start, dst_samples) / dst_channels);
 		for (i = 0; i < n; i++) {
-			process_frame_s16le(dest, n_chan_sink, src, n_chan_source,
+			process_frame_s16le(dst, n_chan_sink, src, n_chan_source,
 					    &cd->coeffs_config);
-			src += audio_stream_get_channels(source);
-			dest += audio_stream_get_channels(sink);
+			src += src_channels;
+			dst += dst_channels;
 		}
-		src = audio_stream_wrap(source, src);
-		dest = audio_stream_wrap(sink, dest);
+		if (src >= src_start + src_samples)
+			src = src_start;
+		if (dst >= dst_start + dst_samples)
+			dst = dst_start;
 		processed += n;
 	}
 
-	module_update_buffer_position(bsource, bsink, frames);
+	ret = source_release_data(source, frames * source_frame_bytes);
+	if (ret)
+		return ret;
+	return sink_commit_buffer(sink, frames * sink_frame_bytes);
 }
 #endif /* CONFIG_FORMAT_S16LE */
 
@@ -251,7 +332,7 @@ static void sel_s16le(struct processing_module *mod, struct input_stream_buffer 
  * \param[in] coeffs_config IPC4 micsel config with Q10 coefficients.
  */
 static void process_frame_s24le(int32_t dst[], int dst_channels,
-				int32_t src[], int src_channels,
+				const int32_t src[], int src_channels,
 				struct ipc4_selector_coeffs_config *coeffs_config)
 {
 	int64_t accum;
@@ -276,41 +357,57 @@ static void process_frame_s24le(int32_t dst[], int dst_channels,
  * \param[in,out] bsink Sink buffer.
  * \param[in] frames Number of frames to process.
  */
-static void sel_s24le(struct processing_module *mod, struct input_stream_buffer *bsource,
-		      struct output_stream_buffer *bsink, uint32_t frames)
+static int sel_s24le(struct processing_module *mod, struct sof_source *source,
+		     struct sof_sink *sink, size_t frames)
 {
 	struct comp_data *cd = module_get_private_data(mod);
-	struct audio_stream *source = bsource->data;
-	struct audio_stream *sink = bsink->data;
-	int32_t *src = audio_stream_get_rptr(source);
-	int32_t *dest = audio_stream_get_wptr(sink);
-	int nmax;
-	int i;
-	int n;
-	int processed = 0;
-	int source_frame_bytes = audio_stream_frame_bytes(source);
-	int sink_frame_bytes = audio_stream_frame_bytes(sink);
-	int n_chan_source = MIN(SEL_SOURCE_CHANNELS_MAX, audio_stream_get_channels(source));
-	int n_chan_sink = MIN(SEL_SINK_CHANNELS_MAX, audio_stream_get_channels(sink));
+	const int n_chan_source = MIN(SEL_SOURCE_CHANNELS_MAX, (int)source_get_channels(source));
+	const int n_chan_sink = MIN(SEL_SINK_CHANNELS_MAX, (int)sink_get_channels(sink));
+	const int source_frame_bytes = source_get_frame_bytes(source);
+	const unsigned int src_channels = source_get_channels(source);
+	const unsigned int dst_channels = sink_get_channels(sink);
+	const int sink_frame_bytes = sink_get_frame_bytes(sink);
+	const int32_t *src, *src_start;
+	int32_t *dst, *dst_start;
+	int src_samples, dst_samples;
+	size_t i, n, processed = 0;
+	int ret;
+
+	ret = source_get_data_s32(source, frames * source_frame_bytes,
+				  &src, &src_start, &src_samples);
+	if (ret)
+		return ret;
+
+	ret = sink_get_buffer_s32(sink, frames * sink_frame_bytes,
+				  &dst, &dst_start, &dst_samples);
+	if (ret) {
+		source_release_data(source, 0);
+		return ret;
+	}
 
 	while (processed < frames) {
 		n = frames - processed;
-		nmax = audio_stream_bytes_without_wrap(source, src) / source_frame_bytes;
-		n = MIN(n, nmax);
-		nmax = audio_stream_bytes_without_wrap(sink, dest) / sink_frame_bytes;
-		n = MIN(n, nmax);
+		n = MIN(n, cir_buf_samples_to_wrap_s32(src, src_start, src_samples) / src_channels);
+		n = MIN(n, cir_buf_samples_to_wrap_s32(dst, dst_start, dst_samples) / dst_channels);
 		for (i = 0; i < n; i++) {
-			process_frame_s24le(dest, n_chan_sink, src, n_chan_source,
+			process_frame_s24le(dst, n_chan_sink, src, n_chan_source,
 					    &cd->coeffs_config);
-			src += audio_stream_get_channels(source);
-			dest += audio_stream_get_channels(sink);
+			src += src_channels;
+			dst += dst_channels;
 		}
-		src = audio_stream_wrap(source, src);
-		dest = audio_stream_wrap(sink, dest);
+		if (src >= src_start + src_samples)
+			src = src_start;
+		if (dst >= dst_start + dst_samples)
+			dst = dst_start;
 		processed += n;
 	}
 
-	module_update_buffer_position(bsource, bsink, frames);
+	ret = source_release_data(source, frames * source_frame_bytes);
+	if (ret) {
+		sink_commit_buffer(sink, 0);
+		return ret;
+	}
+	return sink_commit_buffer(sink, frames * sink_frame_bytes);
 }
 #endif /* CONFIG_FORMAT_S24LE */
 
@@ -324,7 +421,7 @@ static void sel_s24le(struct processing_module *mod, struct input_stream_buffer 
  * \param[in] coeffs_config IPC4 micsel config with Q10 coefficients.
  */
 static void process_frame_s32le(int32_t dst[], int dst_channels,
-				int32_t src[], int src_channels,
+				const int32_t src[], int src_channels,
 				struct ipc4_selector_coeffs_config *coeffs_config)
 {
 	int64_t accum;
@@ -347,41 +444,55 @@ static void process_frame_s32le(int32_t dst[], int dst_channels,
  * \param[in,out] bsink Sink buffer.
  * \param[in] frames Number of frames to process.
  */
-static void sel_s32le(struct processing_module *mod, struct input_stream_buffer *bsource,
-		      struct output_stream_buffer *bsink, uint32_t frames)
+static int sel_s32le(struct processing_module *mod, struct sof_source *source,
+		     struct sof_sink *sink, size_t frames)
 {
 	struct comp_data *cd = module_get_private_data(mod);
-	struct audio_stream *source = bsource->data;
-	struct audio_stream *sink = bsink->data;
-	int32_t *src = audio_stream_get_rptr(source);
-	int32_t *dest = audio_stream_get_wptr(sink);
-	int nmax;
-	int i;
-	int n;
-	int processed = 0;
-	int source_frame_bytes = audio_stream_frame_bytes(source);
-	int sink_frame_bytes = audio_stream_frame_bytes(sink);
-	int n_chan_source = MIN(SEL_SOURCE_CHANNELS_MAX, audio_stream_get_channels(source));
-	int n_chan_sink = MIN(SEL_SINK_CHANNELS_MAX, audio_stream_get_channels(sink));
+	const unsigned int n_chan_source = MIN(SEL_SOURCE_CHANNELS_MAX, source_get_channels(source));
+	const unsigned int n_chan_sink = MIN(SEL_SINK_CHANNELS_MAX, sink_get_channels(sink));
+	const int source_frame_bytes = source_get_frame_bytes(source);
+	const unsigned int src_channels = source_get_channels(source);
+	const unsigned int dst_channels = sink_get_channels(sink);
+	const int sink_frame_bytes = sink_get_frame_bytes(sink);
+	const int32_t *src, *src_start;
+	int32_t *dst, *dst_start;
+	int src_samples, dst_samples;
+	size_t i, n, processed = 0;
+	int ret;
+
+	ret = source_get_data_s32(source, frames * source_frame_bytes,
+				  &src, &src_start, &src_samples);
+	if (ret)
+		return ret;
+
+	ret = sink_get_buffer_s32(sink, frames * sink_frame_bytes,
+				  &dst, &dst_start, &dst_samples);
+	if (ret) {
+		source_release_data(source, 0);
+		return ret;
+	}
 
 	while (processed < frames) {
 		n = frames - processed;
-		nmax = audio_stream_bytes_without_wrap(source, src) / source_frame_bytes;
-		n = MIN(n, nmax);
-		nmax = audio_stream_bytes_without_wrap(sink, dest) / sink_frame_bytes;
-		n = MIN(n, nmax);
+		n = MIN(n, cir_buf_samples_to_wrap_s32(src, src_start, src_samples) / src_channels);
+		n = MIN(n, cir_buf_samples_to_wrap_s32(dst, dst_start, dst_samples) / dst_channels);
 		for (i = 0; i < n; i++) {
-			process_frame_s32le(dest, n_chan_sink, src, n_chan_source,
+			process_frame_s32le(dst, n_chan_sink, src, n_chan_source,
 					    &cd->coeffs_config);
-			src += audio_stream_get_channels(source);
-			dest += audio_stream_get_channels(sink);
+			src += src_channels;
+			dst += dst_channels;
 		}
-		src = audio_stream_wrap(source, src);
-		dest = audio_stream_wrap(sink, dest);
+		if (src >= src_start + src_samples)
+			src = src_start;
+		if (dst >= dst_start + dst_samples)
+			dst = dst_start;
 		processed += n;
 	}
 
-	module_update_buffer_position(bsource, bsink, frames);
+	ret = source_release_data(source, frames * source_frame_bytes);
+	if (ret)
+		return ret;
+	return sink_commit_buffer(sink, frames * sink_frame_bytes);
 }
 #endif /* CONFIG_FORMAT_S32LE */
 #endif

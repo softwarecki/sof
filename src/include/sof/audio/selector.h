@@ -56,8 +56,8 @@ struct comp_dev;
 
 #if CONFIG_IPC_MAJOR_4
 /** \brief selector processing function interface */
-typedef void (*sel_func)(struct processing_module *mod, struct input_stream_buffer *bsource,
-		       struct output_stream_buffer *bsink, uint32_t frames);
+typedef int (*sel_func)(struct processing_module *mod, struct sof_source *source,
+		       struct sof_sink *sink, size_t frames);
 
 /** \brief IPC4 configuration IDs for selector. */
 enum ipc4_selector_config_id {
@@ -108,8 +108,8 @@ struct sof_selector_avs_ipc4_config {
 };
 
 #else
-typedef void (*sel_func)(struct comp_dev *dev, struct audio_stream *sink,
-			 const struct audio_stream *source, uint32_t frames);
+typedef int (*sel_func)(struct comp_dev *dev, struct sof_sink *sink,
+			 struct sof_source *source, size_t frames);
 #endif
 
 /** \brief Selector component private data. */
