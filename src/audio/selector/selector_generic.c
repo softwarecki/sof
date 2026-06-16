@@ -74,10 +74,8 @@ static int sel_s16le_1ch(struct comp_dev *dev, struct sof_sink *sink, struct sof
 		processed += n;
 	}
 
-	ret = source_release_data(source, frames * source_frame_bytes);
-	if (ret)
-		return ret;
-	return sink_commit_buffer(sink, frames * sizeof(*dst));
+	return release_source_and_commit_sink(source, frames * source_frame_bytes,
+		sink, frames * sizeof(*dst));
 }
 
 /**
@@ -122,10 +120,8 @@ static int sel_s16le_nch(struct comp_dev *dev, struct sof_sink *sink,
 		processed += n;
 	}
 
-	ret = source_release_data(source, frames * frame_bytes);
-	if (ret)
-		return ret;
-	return sink_commit_buffer(sink, frames * frame_bytes);
+	return release_source_and_commit_sink(source, frames * frame_bytes,
+		sink, frames * frame_bytes);
 }
 #endif /* CONFIG_FORMAT_S16LE */
 
@@ -179,10 +175,8 @@ static int sel_s32le_1ch(struct comp_dev *dev, struct sof_sink *sink, struct sof
 		processed += n;
 	}
 
-	ret = source_release_data(source, frames * source_frame_bytes);
-	if (ret)
-		return ret;
-	return sink_commit_buffer(sink, frames * sizeof(int32_t));
+	return release_source_and_commit_sink(source, frames * source_frame_bytes,
+		sink, frames * sizeof(int32_t));
 }
 
 /**
@@ -229,10 +223,8 @@ static int sel_s32le_nch(struct comp_dev *dev, struct sof_sink *sink, struct sof
 		processed += n;
 	}
 
-	ret = source_release_data(source, frames * frame_bytes);
-	if (ret)
-		return ret;
-	return sink_commit_buffer(sink, frames * frame_bytes);
+	return release_source_and_commit_sink(source, frames * frame_bytes,
+		sink, frames * frame_bytes);
 }
 #endif /* CONFIG_FORMAT_S24LE || CONFIG_FORMAT_S32LE */
 
@@ -315,10 +307,8 @@ static int sel_s16le(struct processing_module *mod, struct sof_source *source,
 		processed += n;
 	}
 
-	ret = source_release_data(source, frames * source_frame_bytes);
-	if (ret)
-		return ret;
-	return sink_commit_buffer(sink, frames * sink_frame_bytes);
+	return release_source_and_commit_sink(source, frames * source_frame_bytes,
+		sink, frames * sink_frame_bytes);
 }
 #endif /* CONFIG_FORMAT_S16LE */
 
@@ -402,12 +392,8 @@ static int sel_s24le(struct processing_module *mod, struct sof_source *source,
 		processed += n;
 	}
 
-	ret = source_release_data(source, frames * source_frame_bytes);
-	if (ret) {
-		sink_commit_buffer(sink, 0);
-		return ret;
-	}
-	return sink_commit_buffer(sink, frames * sink_frame_bytes);
+	return release_source_and_commit_sink(source, frames * source_frame_bytes,
+		sink, frames * sink_frame_bytes);
 }
 #endif /* CONFIG_FORMAT_S24LE */
 
@@ -489,10 +475,8 @@ static int sel_s32le(struct processing_module *mod, struct sof_source *source,
 		processed += n;
 	}
 
-	ret = source_release_data(source, frames * source_frame_bytes);
-	if (ret)
-		return ret;
-	return sink_commit_buffer(sink, frames * sink_frame_bytes);
+	return release_source_and_commit_sink(source, frames * source_frame_bytes,
+		sink, frames * sink_frame_bytes);
 }
 #endif /* CONFIG_FORMAT_S32LE */
 #endif
