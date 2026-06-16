@@ -168,7 +168,7 @@ static int sel_s32le_1ch(struct comp_dev *dev, struct sof_sink *sink, struct sof
 		src_ch = src + sel_channel;
 		for (i = 0; i < n; i++) {
 			*dst = *src_ch;
-			*src_ch += nch;
+			src_ch += nch;
 			dst++;
 		}
 		src += nch * n;
