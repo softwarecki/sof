@@ -20,7 +20,7 @@ int release_source_and_commit_sink(struct sof_source *source, size_t free_size,
 	int sink_ret;
 
 	src_ret = source_release_data(source, free_size);
-	sink_ret = sink_commit_buffer(sink, commit_size);
+	sink_ret = sink_commit_buffer(sink, (src_ret ? 0 : commit_size));
 
 	return src_ret ? src_ret : sink_ret;
 }
