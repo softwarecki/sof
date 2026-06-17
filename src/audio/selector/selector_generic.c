@@ -176,7 +176,7 @@ static int sel_s32le_1ch(struct comp_dev *dev, struct sof_sink *sink, struct sof
 	}
 
 	return release_source_and_commit_sink(source, frames * source_frame_bytes,
-		sink, frames * sizeof(int32_t));
+		sink, frames * source_frame_bytes);
 }
 
 /**
