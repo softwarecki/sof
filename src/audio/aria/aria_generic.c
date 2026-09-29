@@ -48,7 +48,7 @@ static void aria_algo_get_data(struct processing_module *mod,
 	/* do linear approximation between points gain_begin and gain_end */
 	int32_t gain_end = cd->gains[sof_aria_index_tab[gain_state_add_3]];
 	size_t m, n, i;
-	int ch;
+	int ch, idx;
 	size_t samples = frames * audio_stream_get_channels(sink);
 	int32_t *out = audio_stream_get_wptr(sink);
 	int32_t *in = cd->data_ptr;
@@ -56,11 +56,11 @@ static void aria_algo_get_data(struct processing_module *mod,
 	const int ch_n = cd->chan_cnt;
 	const int shift = 31 - cd->att;
 
-	for (ch = 1; ch < ARIA_MAX_GAIN_STATES - 1; ch++) {
-		if (cd->gains[sof_aria_index_tab[gain_state_add_2 + ch]] < gain_begin)
-			gain_begin = cd->gains[sof_aria_index_tab[gain_state_add_2 + ch]];
-		if (cd->gains[sof_aria_index_tab[gain_state_add_3 + ch]] < gain_end)
-			gain_end = cd->gains[sof_aria_index_tab[gain_state_add_3 + ch]];
+	for (idx = 1; idx < ARIA_MAX_GAIN_STATES - 1; idx++) {
+		if (cd->gains[sof_aria_index_tab[gain_state_add_2 + idx]] < gain_begin)
+			gain_begin = cd->gains[sof_aria_index_tab[gain_state_add_2 + idx]];
+		if (cd->gains[sof_aria_index_tab[gain_state_add_3 + idx]] < gain_end)
+			gain_end = cd->gains[sof_aria_index_tab[gain_state_add_3 + idx]];
 	}
 	step = (gain_end - gain_begin) / frames;
 	gain = gain_begin;

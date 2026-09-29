@@ -75,12 +75,13 @@ static void aria_algo_get_data_odd_channel(struct processing_module *mod,
 	const int ch_n = cd->chan_cnt;
 	const int shift_bits = 31 - cd->att - 24;
 	ae_int64 out1;
+	int idx;
 
-	for (i = 1; i < ARIA_MAX_GAIN_STATES - 1; i++) {
-		if (cd->gains[sof_aria_index_tab[gain_state_add_2 + i]] < gain_begin)
-			gain_begin = cd->gains[sof_aria_index_tab[gain_state_add_2 + i]];
-		if (cd->gains[sof_aria_index_tab[gain_state_add_3 + i]] < gain_end)
-			gain_end = cd->gains[sof_aria_index_tab[gain_state_add_3 + i]];
+	for (idx = 1; idx < ARIA_MAX_GAIN_STATES - 1; idx++) {
+		if (cd->gains[sof_aria_index_tab[gain_state_add_2 + idx]] < gain_begin)
+			gain_begin = cd->gains[sof_aria_index_tab[gain_state_add_2 + idx]];
+		if (cd->gains[sof_aria_index_tab[gain_state_add_3 + idx]] < gain_end)
+			gain_end = cd->gains[sof_aria_index_tab[gain_state_add_3 + idx]];
 	}
 
 	step = (gain_end - gain_begin) / frames;
@@ -133,12 +134,13 @@ static void aria_algo_get_data_even_channel(struct processing_module *mod,
 	const int ch_n = cd->chan_cnt;
 	const int shift_bits = 31 - cd->att - 24;
 	ae_int64 out1, out2;
+	int idx;
 
-	for (i = 1; i < ARIA_MAX_GAIN_STATES - 1; i++) {
-		if (cd->gains[sof_aria_index_tab[gain_state_add_2 + i]] < gain_begin)
-			gain_begin = cd->gains[sof_aria_index_tab[gain_state_add_2 + i]];
-		if (cd->gains[sof_aria_index_tab[gain_state_add_3 + i]] < gain_end)
-			gain_end = cd->gains[sof_aria_index_tab[gain_state_add_3 + i]];
+	for (idx = 1; idx < ARIA_MAX_GAIN_STATES - 1; idx++) {
+		if (cd->gains[sof_aria_index_tab[gain_state_add_2 + idx]] < gain_begin)
+			gain_begin = cd->gains[sof_aria_index_tab[gain_state_add_2 + idx]];
+		if (cd->gains[sof_aria_index_tab[gain_state_add_3 + idx]] < gain_end)
+			gain_end = cd->gains[sof_aria_index_tab[gain_state_add_3 + idx]];
 	}
 
 	step = (gain_end - gain_begin) / frames;
