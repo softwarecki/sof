@@ -26,9 +26,9 @@ LOG_MODULE_DECLARE(volume_hifi4, CONFIG_SOF_LOG_LEVEL);
 #if CONFIG_COMP_PEAK_VOL
 #include <xtensa/tie/xt_hifi4.h>
 
-static inline void vol_store_gain(struct vol_data *cd, const int channels_count)
+static inline void vol_store_gain(struct vol_data *cd, const unsigned int channels_count)
 {
-	int32_t i;
+	unsigned int i;
 
 	/* using for loop instead of memcpy_s(), because for loop costs less cycles */
 	for (i = 0; i < channels_count; i++) {
@@ -58,13 +58,13 @@ static void vol_s24_to_s24_s32(struct processing_module *mod, struct cir_buf_sou
 	ae_f32x2 out_sample;
 	ae_f32x2 volume;
 	size_t i, n, m;
-	int j;
+	unsigned int j;
 	ae_f32x2 *vol;
 	ae_valign inu;
 	ae_valign outu = AE_ZALIGN64();
 	const ae_f32x2 *in = source->ptr;
 	ae_f32x2 *out = sink->ptr;
-	const int channels_count = cd->channels;
+	const unsigned int channels_count = cd->channels;
 	const int inc = sizeof(ae_f32x2);
 	size_t samples = channels_count * frames;
 	ae_f32x2 temp;
@@ -148,12 +148,12 @@ static void vol_passthrough_s24_to_s24_s32(struct processing_module *mod,
 	ae_f32x2 in_sample;
 
 	size_t i, n, m;
-	int j;
+	unsigned int j;
 	ae_valign inu;
 	ae_valign outu = AE_ZALIGN64();
 	const ae_f32x2 *in = source->ptr;
 	ae_f32x2 *out = sink->ptr;
-	const int channels_count = cd->channels;
+	const unsigned int channels_count = cd->channels;
 	const int inc = sizeof(ae_f32x2);
 	size_t samples = channels_count * frames;
 	ae_f32x2 temp;
@@ -210,13 +210,13 @@ static void vol_s32_to_s24_s32(struct processing_module *mod, struct cir_buf_sou
 	ae_f32x2 out_sample;
 	ae_f32x2 volume;
 	size_t i, n, m;
-	int j;
+	unsigned int j;
 	ae_f32x2 *buf;
 	ae_f32x2 *buf_end;
 	ae_f32x2 *vol;
 	ae_valign inu;
 	ae_valign outu = AE_ZALIGN64();
-	const int channels_count = cd->channels;
+	const unsigned int channels_count = cd->channels;
 	const int inc = sizeof(ae_f32x2);
 	size_t samples = channels_count * frames;
 	const ae_f32x2 *in = source->ptr;
@@ -303,10 +303,10 @@ static void vol_passthrough_s32_to_s24_s32(struct processing_module *mod,
 	struct vol_data *cd = module_get_private_data(mod);
 	ae_f32x2 in_sample;
 	size_t i, n, m;
-	int j;
+	unsigned int j;
 	ae_valign inu;
 	ae_valign outu = AE_ZALIGN64();
-	const int channels_count = cd->channels;
+	const unsigned int channels_count = cd->channels;
 	const int inc = sizeof(ae_f32x2);
 	size_t samples = channels_count * frames;
 	const ae_f32x2 *in = source->ptr;
@@ -366,7 +366,7 @@ static void vol_s16_to_s16(struct processing_module *mod, struct cir_buf_source 
 	ae_f16x4 in_sample;
 	ae_f16x4 out_sample;
 	size_t i, n, m, left;
-	int j;
+	unsigned int j;
 	ae_f32x2 *buf;
 	ae_f32x2 *buf_end;
 	ae_f32x2 *vol;
@@ -374,7 +374,7 @@ static void vol_s16_to_s16(struct processing_module *mod, struct cir_buf_source 
 	ae_valign outu = AE_ZALIGN64();
 	const ae_f16x4 *in = source->ptr;
 	ae_f16x4 *out = sink->ptr;
-	const int channels_count = cd->channels;
+	const unsigned int channels_count = cd->channels;
 	const int inc = sizeof(ae_f32x2);
 	size_t samples = channels_count * frames;
 	ae_f32x2 temp;
@@ -509,12 +509,12 @@ static void vol_passthrough_s16_to_s16(struct processing_module *mod,
 	struct vol_data *cd = module_get_private_data(mod);
 	ae_f16x4 in_sample;
 	size_t i, n, m, left;
-	int j;
+	unsigned int j;
 	ae_valign inu;
 	ae_valign outu = AE_ZALIGN64();
 	const ae_f16x4 *in = source->ptr;
 	ae_f16x4 *out = sink->ptr;
-	const int channels_count = cd->channels;
+	const unsigned int channels_count = cd->channels;
 	const int inc = sizeof(ae_f32x2);
 	size_t samples = channels_count * frames;
 	ae_f32x2 temp;

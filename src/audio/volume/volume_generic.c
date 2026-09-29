@@ -64,8 +64,8 @@ static void vol_s24_to_s24(struct processing_module *mod, struct cir_buf_source 
 	int32_t *y, *y0;
 	int32_t vol;
 	size_t nmax, n, i;
-	int j;
-	const int nch = cd->channels;
+	unsigned int j;
+	const unsigned int nch = cd->channels;
 	size_t remaining_samples = frames * nch;
 
 	x = source->ptr;
@@ -109,7 +109,7 @@ static void vol_passthrough_s24_to_s24(struct processing_module *mod,
 	const int32_t *x;
 	int32_t *y;
 	size_t nmax, n;
-	const int nch = cd->channels;
+	const unsigned int nch = cd->channels;
 	size_t remaining_samples = frames * nch;
 
 	x = source->ptr;
@@ -147,8 +147,8 @@ static void vol_s32_to_s32(struct processing_module *mod, struct cir_buf_source 
 	int32_t *y, *y0;
 	int32_t vol;
 	size_t nmax, n, i;
-	int j;
-	const int nch = cd->channels;
+	unsigned int j;
+	const unsigned int nch = cd->channels;
 	size_t remaining_samples = frames * nch;
 
 	x = source->ptr;
@@ -196,7 +196,7 @@ static void vol_passthrough_s32_to_s32(struct processing_module *mod,
 	const int32_t *x;
 	int32_t *y;
 	size_t nmax, n;
-	const int nch = cd->channels;
+	const unsigned int nch = cd->channels;
 	size_t remaining_samples = frames * nch;
 
 	x = source->ptr;
@@ -234,8 +234,8 @@ static void vol_s16_to_s16(struct processing_module *mod, struct cir_buf_source 
 	int16_t *y, *y0;
 	int32_t vol;
 	size_t nmax, n, i;
-	int j;
-	const int nch = cd->channels;
+	unsigned int j;
+	const unsigned int nch = cd->channels;
 	size_t remaining_samples = frames * nch;
 
 	x = source->ptr;
@@ -280,7 +280,7 @@ static void vol_passthrough_s16_to_s16(struct processing_module *mod,
 	const int16_t *x;
 	int16_t *y;
 	size_t nmax, n;
-	const int nch = cd->channels;
+	const unsigned int nch = cd->channels;
 	size_t remaining_samples = frames * nch;
 
 	x = source->ptr;
