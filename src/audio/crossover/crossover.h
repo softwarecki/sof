@@ -57,7 +57,7 @@ struct comp_data;
 typedef int (*crossover_process_func)(struct comp_data *cd,
 				      struct sof_source *source,
 				      struct sof_sink **sinks,
-				      uint32_t num_sinks,
+				      unsigned int num_sinks,
 				      size_t frames);
 
 /* Crossover component private data */

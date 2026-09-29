@@ -93,14 +93,14 @@ int crossover_get_stream_index(struct processing_module *mod,
  * \return number of sinks assigned. This number should be equal to
  *	   config->num_sinks if no errors were found.
  */
-static uint32_t crossover_assign_sinks(struct processing_module *mod,
+static unsigned int crossover_assign_sinks(struct processing_module *mod,
 				       struct sof_sink **sinks, int num_of_sinks,
 				       struct sof_sink **assigned_sinks)
 {
 	struct comp_data *cd = module_get_private_data(mod);
 	struct sof_crossover_config *config = cd->config;
 	struct comp_dev *dev = mod->dev;
-	uint32_t num_sinks = 0;
+	unsigned int num_sinks = 0;
 	int i;
 	int j;
 
@@ -473,11 +473,12 @@ static int crossover_process(struct processing_module *mod,
 	struct comp_data *cd = module_get_private_data(mod);
 	struct comp_dev *dev = mod->dev;
 	struct sof_source *source = sources[0];
-	uint32_t num_sinks, prev_num_sinks;
-	uint32_t num_assigned_sinks = 0;
+	unsigned int num_sinks, i;
+	unsigned int num_assigned_sinks = 0;
+	uint32_t prev_num_sinks;
 	size_t frames, cfg_size;
 	struct sof_crossover_config *prev_config;
-	int ret, i;
+	int ret;
 
 	comp_dbg(dev, "entry");
 
